@@ -1,2 +1,2 @@
-# Moviebook
+# MovieBook
 SKG Education Bootcamp Project
