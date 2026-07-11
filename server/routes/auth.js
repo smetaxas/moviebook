@@ -8,6 +8,7 @@ const User = require('../models/User');
 router.post('/register', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Register attempt:', email);
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -21,6 +22,7 @@ router.post('/register', async (req, res) => {
 
     res.status(201).json({ message: 'User created successfully', token, email: user.email });
   } catch (err) {
+    console.log('Register error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
