@@ -13,7 +13,7 @@ function Register() {
     try {
       const res = await api.post('/auth/register', { email, password })
       localStorage.setItem('user', JSON.stringify(res.data))
-      navigate('/home')
+      navigate('/profile')
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
     }
