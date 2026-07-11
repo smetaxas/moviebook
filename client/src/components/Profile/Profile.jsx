@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import SearchModal from '../Movies/SearchModal'
 
 function Profile() {
   const [user, setUser] = useState(null)
   const [error, setError] = useState('')
+  const [showSearch, setShowSearch] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -40,7 +42,10 @@ function Profile() {
       <h2>My Profile</h2>
       <p><strong>Email:</strong> {user.email}</p>
       <p><strong>Member since:</strong> {formatDate(user.createdAt)}</p>
+      <button onClick={() => setShowSearch(true)}>Search Movies</button>
       <button onClick={handleLogout}>Logout</button>
+
+      {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
     </div>
   )
 }
