@@ -56,6 +56,7 @@ function Profile() {
       <p><strong>Email:</strong> {user.email}</p>
       <p><strong>Member since:</strong> {formatDate(user.createdAt)}</p>
       <button onClick={() => setShowSearch(true)}>Search Movies</button>
+      <button onClick={() => navigate('/feed')}>Community Feed</button>
       <button onClick={handleLogout}>Logout</button>
 
       <h3>My Watched Movies ({watchedMovies.length})</h3>
