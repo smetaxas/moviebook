@@ -51,13 +51,25 @@ function TMDBMovieModal({ movie, onClose, onLogMovie }) {
               <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎬 {tmdbMovie.director}</p>
               <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎭 {tmdbMovie.genres.join(', ')}</p>
               <p style={{ color: '#aaa', margin: '0 0 0.75rem 0' }}>⏱ {tmdbMovie.runtime} min</p>
-              <p style={{ color: 'white', margin: '0 0 1.5rem 0', fontSize: '0.9rem' }}>{tmdbMovie.description}</p>
-              <button
-                onClick={() => onLogMovie(movie)}
-                style={{ padding: '0.75rem 1.5rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1rem' }}
-              >
-                Log Movie
-              </button>
+              <p style={{ color: 'white', margin: '0 0 1rem 0', fontSize: '0.9rem' }}>{tmdbMovie.description}</p>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {tmdbMovie.trailer_key && (
+                  <a
+                    href={`https://www.youtube.com/watch?v=${tmdbMovie.trailer_key}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-block', padding: '0.5rem 1rem', backgroundColor: '#e50914', color: 'white', borderRadius: '4px', textDecoration: 'none' }}
+                  >
+                    ▶ Watch Trailer
+                  </a>
+                )}
+                <button
+                  onClick={() => onLogMovie(movie)}
+                  style={{ padding: '0.5rem 1rem', backgroundColor: '#333', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Log Movie
+                </button>
+              </div>
             </div>
           </div>
         )}

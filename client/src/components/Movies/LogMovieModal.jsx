@@ -74,7 +74,7 @@ function LogMovieModal({ movie, onClose, onLogged }) {
             disabled={loading}
             style={{ width: '100%', padding: '0.75rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '1rem' }}
           >
-            {loading ? 'Logging...' : 'Log Movie'}
+            {loading ? 'Logging...' : 'Add to Watched Movies'}
           </button>
         </form>
       </div>

@@ -12,6 +12,8 @@ function CommunityFeed() {
   const [newComments, setNewComments] = useState({})
   const navigate = useNavigate()
 
+  const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
+
   useEffect(() => {
     if (!query.trim()) {
       setSearchResults([])
@@ -147,22 +149,24 @@ function CommunityFeed() {
               {watched.comments.length === 0 && <p style={{ color: '#aaa', fontSize: '0.8rem' }}>No comments yet!</p>}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                type="text"
-                value={newComments[watched._id] || ''}
-                onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
-                placeholder="Add a comment..."
-                maxLength={500}
-                style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#2a2a2a', color: 'white' }}
-              />
-              <button
-                onClick={() => handleAddComment(watched._id)}
-                style={{ padding: '0.5rem 1rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Post
-              </button>
-            </div>
+            {watched.user_id?._id !== currentUserId && (
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  value={newComments[watched._id] || ''}
+                  onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
+                  placeholder="Add a comment..."
+                  maxLength={500}
+                  style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#2a2a2a', color: 'white' }}
+                />
+                <button
+                  onClick={() => handleAddComment(watched._id)}
+                  style={{ padding: '0.5rem 1rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  Post
+                </button>
+              </div>
+            )}
           </div>
         ))}
       </div>
