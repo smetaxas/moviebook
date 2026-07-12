@@ -92,4 +92,30 @@ router.get('/id/:id', requireAuth, async (req, res) => {
   }
 });
 
+// Get all watched movies by movie_id (all users) with comments
+router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
+  try {
+    const ReviewComment = require('../models/ReviewComment');
+    
+    const watchedMovies = await WatchedMovie.find({ movie_id: req.params.movieId })
+      .populate('user_id', 'email')
+      .sort({ watchedAt: -1 })
+      .select('-__v');
+
+    const watchedWithComments = await Promise.all(
+      watchedMovies.map(async (watched) => {
+        const comments = await ReviewComment.find({ watched_movie_id: watched._id })
+          .populate('commenter_id', 'email')
+          .sort({ createdAt: -1 })
+          .select('-__v');
+        return { ...watched.toObject(), comments }
+      })
+    );
+
+    res.json(watchedWithComments);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

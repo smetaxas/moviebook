@@ -3,7 +3,6 @@ import api from '../../api/axios'
 
 function LogMovieModal({ movie, onClose, onLogged }) {
   const [rating, setRating] = useState(5)
-  const [review, setReview] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,8 +16,7 @@ function LogMovieModal({ movie, onClose, onLogged }) {
         movie_title: movie.title,
         movie_poster: movie.poster_url,
         movie_year: movie.year,
-        rating,
-        review
+        rating
       })
       onLogged()
       onClose()
@@ -59,7 +57,7 @@ function LogMovieModal({ movie, onClose, onLogged }) {
         {error && <p style={{ color: 'red' }}>{error}</p>}
 
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '1rem' }}>
+          <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem' }}>Rating (1-5):</label>
             <input
               type="number"
@@ -68,17 +66,6 @@ function LogMovieModal({ movie, onClose, onLogged }) {
               value={rating}
               onChange={(e) => setRating(Number(e.target.value))}
               style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#2a2a2a', color: 'white', boxSizing: 'border-box' }}
-            />
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ color: 'white', display: 'block', marginBottom: '0.5rem' }}>Review (optional):</label>
-            <textarea
-              value={review}
-              onChange={(e) => setReview(e.target.value)}
-              maxLength={1000}
-              rows={4}
-              style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#2a2a2a', color: 'white', boxSizing: 'border-box', resize: 'vertical' }}
             />
           </div>
 
