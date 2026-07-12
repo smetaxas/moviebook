@@ -29,6 +29,6 @@ const movieSchema = new mongoose.Schema({
   runtime: {
     type: Number
   }
-}, { timestamps: true });
+}, { timestamps: true, versionKey: false });
 
 module.exports = mongoose.model('Movie', movieSchema);

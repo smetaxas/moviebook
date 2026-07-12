@@ -6,6 +6,8 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user');
 const movieRoutes = require('./routes/movies');
+const watchedRoutes = require('./routes/watched');
+const commentRoutes = require('./routes/comments');
 const requireAuth = require('./middleware/auth');
 
 const app = express();
@@ -25,6 +27,8 @@ mongoose.connect(process.env.MONGO_URI)
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/movies', requireAuth, movieRoutes);
+app.use('/api/watched', requireAuth, watchedRoutes);
+app.use('/api/comments', requireAuth, commentRoutes);
 
 // Test route
 app.get('/', (req, res) => {
