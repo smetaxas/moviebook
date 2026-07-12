@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import api from '../../api/axios'
 import LogMovieModal from './LogMovieModal'
+import TMDBMovieModal from './TMDBMovieModal'
 
 function SearchModal({ onClose, onMovieLogged }) {
   const [query, setQuery] = useState('')
@@ -8,6 +9,7 @@ function SearchModal({ onClose, onMovieLogged }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [selectedMovie, setSelectedMovie] = useState(null)
+  const [movieToLog, setMovieToLog] = useState(null)
 
   useEffect(() => {
     if (!query.trim()) {
@@ -64,22 +66,28 @@ function SearchModal({ onClose, onMovieLogged }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
             {results.map(movie => (
-              <div
-                key={movie.tmdb_id}
-                onClick={() => setSelectedMovie(movie)}
-                style={{ textAlign: 'center', cursor: 'pointer' }}
-              >
+              <div key={movie.tmdb_id} style={{ textAlign: 'center', position: 'relative' }}>
                 {movie.poster_url ? (
                   <img
                     src={movie.poster_url}
                     alt={movie.title}
-                    style={{ width: '100%', borderRadius: '4px' }}
+                    onClick={() => setMovieToLog(movie)}
+                    style={{ width: '100%', borderRadius: '4px', cursor: 'pointer' }}
                   />
                 ) : (
-                  <div style={{ width: '100%', height: '225px', backgroundColor: '#2a2a2a', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div
+                    onClick={() => setMovieToLog(movie)}
+                    style={{ width: '100%', height: '225px', backgroundColor: '#2a2a2a', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                  >
                     <span style={{ color: 'white' }}>No Poster</span>
                   </div>
                 )}
+                <button
+                  onClick={() => setSelectedMovie(movie)}
+                  style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '4px', padding: '0.25rem 0.5rem', cursor: 'pointer', fontSize: '0.75rem' }}
+                >
+                  Details
+                </button>
                 <p style={{ color: 'white', fontSize: '0.8rem', marginTop: '0.5rem' }}>{movie.title}</p>
                 <p style={{ color: '#aaa', fontSize: '0.75rem' }}>{movie.year}</p>
               </div>
@@ -93,11 +101,22 @@ function SearchModal({ onClose, onMovieLogged }) {
       </div>
 
       {selectedMovie && (
-        <LogMovieModal
+        <TMDBMovieModal
           movie={selectedMovie}
           onClose={() => setSelectedMovie(null)}
-          onLogged={() => {
+          onLogMovie={(movie) => {
             setSelectedMovie(null)
+            setMovieToLog(movie)
+          }}
+        />
+      )}
+
+      {movieToLog && (
+        <LogMovieModal
+          movie={movieToLog}
+          onClose={() => setMovieToLog(null)}
+          onLogged={() => {
+            setMovieToLog(null)
             onMovieLogged()
             onClose()
           }}

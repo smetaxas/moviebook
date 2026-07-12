@@ -63,7 +63,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
         maxHeight: '85vh', overflowY: 'auto'
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-          <h2 style={{ color: 'white', margin: 0 }}>Movie Detail</h2>
+          <h2 style={{ color: 'white', margin: 0 }}>Movie Details</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
         </div>
 
