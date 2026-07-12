@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import SearchModal from '../Movies/SearchModal'
+import MovieDetailModal from '../Movies/MovieDetailModal'
 
 function Profile() {
   const [user, setUser] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -62,7 +64,11 @@ function Profile() {
       <h3>My Watched Movies ({watchedMovies.length})</h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
         {watchedMovies.map(movie => (
-          <div key={movie._id} style={{ textAlign: 'center', cursor: 'pointer' }}>
+          <div
+            key={movie._id}
+            onClick={() => setSelectedWatchedMovie(movie._id)}
+            style={{ textAlign: 'center', cursor: 'pointer' }}
+          >
             {movie.movie_poster ? (
               <img
                 src={movie.movie_poster}
@@ -82,6 +88,13 @@ function Profile() {
 
       {watchedMovies.length === 0 && (
         <p style={{ color: '#aaa' }}>No watched movies yet. Search and log some movies!</p>
+      )}
+
+      {selectedWatchedMovie && (
+        <MovieDetailModal
+          watchedMovieId={selectedWatchedMovie}
+          onClose={() => setSelectedWatchedMovie(null)}
+        />
       )}
 
       {showSearch && (

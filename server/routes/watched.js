@@ -79,4 +79,17 @@ router.get('/movie/:movieId', requireAuth, async (req, res) => {
   }
 });
 
+// Get watched movie by _id
+router.get('/id/:id', requireAuth, async (req, res) => {
+  try {
+    const watchedMovie = await WatchedMovie.findById(req.params.id).select('-__v');
+    if (!watchedMovie) {
+      return res.status(404).json({ message: 'Watched movie not found' });
+    }
+    res.json(watchedMovie);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

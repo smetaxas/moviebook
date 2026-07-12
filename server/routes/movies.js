@@ -42,6 +42,35 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Get movie details from TMDB
+router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
+  try {
+    const [movieRes, creditsRes] = await Promise.all([
+      fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}?api_key=${process.env.TMDB_API_KEY}&language=en-US`),
+      fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/credits?api_key=${process.env.TMDB_API_KEY}`)
+    ]);
+
+    const [data, credits] = await Promise.all([movieRes.json(), creditsRes.json()]);
+
+    const director = credits.crew?.find(member => member.job === 'Director')?.name || null;
+
+    const movie = {
+      tmdb_id: data.id,
+      title: data.title,
+      year: data.release_date ? new Date(data.release_date).getFullYear() : null,
+      description: data.overview,
+      director,
+      genres: data.genres?.map(g => g.name) || [],
+      poster_url: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : '',
+      runtime: data.runtime
+    }
+
+    res.json(movie)
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Get single movie
 router.get('/:id', requireAuth, async (req, res) => {
   try {
