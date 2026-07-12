@@ -5,21 +5,34 @@ import SearchModal from '../Movies/SearchModal'
 
 function Profile() {
   const [user, setUser] = useState(null)
+  const [watchedMovies, setWatchedMovies] = useState([])
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await api.get('/user/profile')
-        setUser(res.data)
-      } catch (err) {
-        setError('Failed to load profile')
-      }
-    }
     fetchProfile()
+    fetchWatchedMovies()
   }, [])
+
+  const fetchProfile = async () => {
+    try {
+      const res = await api.get('/user/profile')
+      setUser(res.data)
+    } catch (err) {
+      setError('Failed to load profile')
+    }
+  }
+
+  const fetchWatchedMovies = async () => {
+    try {
+      const userData = JSON.parse(localStorage.getItem('user'))
+      const res = await api.get(`/watched/user/${userData.userId}`)
+      setWatchedMovies(res.data)
+    } catch (err) {
+      console.error('Failed to load watched movies')
+    }
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('user')
@@ -45,7 +58,37 @@ function Profile() {
       <button onClick={() => setShowSearch(true)}>Search Movies</button>
       <button onClick={handleLogout}>Logout</button>
 
-      {showSearch && <SearchModal onClose={() => setShowSearch(false)} />}
+      <h3>My Watched Movies ({watchedMovies.length})</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+        {watchedMovies.map(movie => (
+          <div key={movie._id} style={{ textAlign: 'center', cursor: 'pointer' }}>
+            {movie.movie_poster ? (
+              <img
+                src={movie.movie_poster}
+                alt={movie.movie_title}
+                style={{ width: '100%', borderRadius: '4px' }}
+              />
+            ) : (
+              <div style={{ width: '100%', height: '225px', backgroundColor: '#2a2a2a', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ color: 'white' }}>No Poster</span>
+              </div>
+            )}
+            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem' }}>{movie.movie_title}</p>
+            <p style={{ fontSize: '0.75rem', color: '#aaa' }}>⭐ {movie.rating}/5</p>
+          </div>
+        ))}
+      </div>
+
+      {watchedMovies.length === 0 && (
+        <p style={{ color: '#aaa' }}>No watched movies yet. Search and log some movies!</p>
+      )}
+
+      {showSearch && (
+        <SearchModal
+          onClose={() => setShowSearch(false)}
+          onMovieLogged={fetchWatchedMovies}
+        />
+      )}
     </div>
   )
 }
