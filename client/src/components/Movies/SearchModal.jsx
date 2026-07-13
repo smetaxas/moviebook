@@ -66,28 +66,22 @@ function SearchModal({ onClose, onMovieLogged }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
             {results.map(movie => (
-              <div key={movie.tmdb_id} style={{ textAlign: 'center', position: 'relative' }}>
+              <div
+                key={movie.tmdb_id}
+                onClick={() => setSelectedMovie(movie)}
+                style={{ textAlign: 'center', cursor: 'pointer' }}
+              >
                 {movie.poster_url ? (
                   <img
                     src={movie.poster_url}
                     alt={movie.title}
-                    onClick={() => setMovieToLog(movie)}
-                    style={{ width: '100%', borderRadius: '4px', cursor: 'pointer' }}
+                    style={{ width: '100%', borderRadius: '4px' }}
                   />
                 ) : (
-                  <div
-                    onClick={() => setMovieToLog(movie)}
-                    style={{ width: '100%', height: '225px', backgroundColor: '#2a2a2a', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
+                  <div style={{ width: '100%', height: '225px', backgroundColor: '#2a2a2a', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ color: 'white' }}>No Poster</span>
                   </div>
                 )}
-                <button
-                  onClick={() => setSelectedMovie(movie)}
-                  style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', backgroundColor: 'rgba(0,0,0,0.7)', color: 'white', border: 'none', borderRadius: '4px', padding: '0.25rem 0.5rem', cursor: 'pointer', fontSize: '0.75rem' }}
-                >
-                  Details
-                </button>
                 <p style={{ color: 'white', fontSize: '0.8rem', marginTop: '0.5rem' }}>{movie.title}</p>
                 <p style={{ color: '#aaa', fontSize: '0.75rem' }}>{movie.year}</p>
               </div>

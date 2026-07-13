@@ -8,6 +8,10 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [rating, setRating] = useState(null)
+  const [ratingUpdated, setRatingUpdated] = useState(false)
+
+  const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
 
   useEffect(() => {
     fetchData()
@@ -20,6 +24,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
         api.get(`/comments/${watchedMovieId}`)
       ])
       setWatchedMovie(watchedRes.data)
+      setRating(watchedRes.data.rating)
       setComments(commentsRes.data)
 
       const tmdbRes = await api.get(`/movies/tmdb/${watchedRes.data.movie_id}`)
@@ -28,6 +33,16 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
       setError('Failed to load movie details')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleUpdateRating = async () => {
+    try {
+      await api.patch(`/watched/id/${watchedMovieId}`, { rating })
+      setRatingUpdated(true)
+      setTimeout(() => setRatingUpdated(false), 2000)
+    } catch (err) {
+      setError('Failed to update rating')
     }
   }
 
@@ -48,6 +63,8 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
       day: 'numeric', month: 'long', year: 'numeric'
     })
   }
+
+  const isOwner = watchedMovie?.user_id === currentUserId || watchedMovie?.user_id?._id === currentUserId
 
   return (
     <div style={{
@@ -86,8 +103,29 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick }) {
                     <p style={{ color: 'white', margin: '0 0 0.75rem 0', fontSize: '0.9rem' }}>{tmdbMovie.description}</p>
                   </>
                 )}
-                <p style={{ color: 'white', margin: '0 0 0.25rem 0' }}>⭐ {watchedMovie.rating}/5</p>
-                {watchedMovie.review && <p style={{ color: 'white', margin: '0 0 0.25rem 0', fontStyle: 'italic' }}>"{watchedMovie.review}"</p>}
+
+                {isOwner ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                    <span style={{ color: 'white' }}>⭐ Rating:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="5"
+                      value={rating}
+                      onChange={(e) => setRating(Number(e.target.value))}
+                      style={{ width: '60px', padding: '0.25rem', borderRadius: '4px', border: '1px solid #444', backgroundColor: '#2a2a2a', color: 'white' }}
+                    />
+                    <button
+                      onClick={handleUpdateRating}
+                      style={{ padding: '0.25rem 0.75rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      {ratingUpdated ? '✓ Saved!' : 'Update'}
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ color: 'white', margin: '0 0 0.25rem 0' }}>⭐ {watchedMovie.rating}/5</p>
+                )}
+
                 <p style={{ color: '#aaa', fontSize: '0.8rem', margin: 0 }}>Watched: {formatDate(watchedMovie.watchedAt)}</p>
               </div>
             </div>
