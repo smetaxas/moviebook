@@ -41,6 +41,23 @@ function Profile() {
     navigate('/login')
   }
 
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+
+    const formData = new FormData()
+    formData.append('photo', file)
+
+    try {
+      const res = await api.post('/user/profile/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setUser(prev => ({ ...prev, profile_photo: res.data.profile_photo }))
+    } catch (err) {
+      console.error('Failed to upload photo')
+    }
+  }
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'long', year: 'numeric'
@@ -112,14 +129,49 @@ function Profile() {
           alignItems: 'center',
           gap: '1.5rem'
         }}>
-          <div style={{
-            width: '80px', height: '80px', borderRadius: '50%',
-            backgroundColor: '#e50914',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '2rem', flexShrink: 0
-          }}>
-            {(user.username || user.email)[0].toUpperCase()}
+          {/* Avatar with upload */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {user.profile_photo ? (
+              <img
+                src={user.profile_photo}
+                alt="Profile"
+                style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer' }}
+                onClick={() => document.getElementById('photoInput').click()}
+              />
+            ) : (
+              <div
+                onClick={() => document.getElementById('photoInput').click()}
+                style={{
+                  width: '80px', height: '80px', borderRadius: '50%',
+                  backgroundColor: '#e50914',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '2rem', cursor: 'pointer'
+                }}
+              >
+                {(user.username || user.email)[0].toUpperCase()}
+              </div>
+            )}
+            <div
+              onClick={() => document.getElementById('photoInput').click()}
+              style={{
+                position: 'absolute', bottom: 0, right: 0,
+                backgroundColor: '#333', borderRadius: '50%',
+                width: '24px', height: '24px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', fontSize: '0.7rem'
+              }}
+            >
+              📷
+            </div>
+            <input
+              id="photoInput"
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handlePhotoUpload}
+            />
           </div>
+
           <div>
             <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.5rem' }}>{user.username || user.email}</h2>
             <p style={{ color: '#aaa', margin: 0 }}>Member since {formatDate(user.createdAt)}</p>
