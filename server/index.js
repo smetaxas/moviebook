@@ -15,6 +15,14 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
+app.use(cors());
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/user/profile/photo') {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 app.use(express.json());
 
 
