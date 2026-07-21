@@ -29,6 +29,7 @@ const POSTER_URLS = [
 ]
 
 function Register() {
+  const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -44,7 +45,7 @@ function Register() {
       return
     }
     try {
-      const res = await api.post('/auth/register', { email, password })
+      const res = await api.post('/auth/register', { email, password, username })
       localStorage.setItem('user', JSON.stringify(res.data))
       navigate('/profile')
     } catch (err) {
@@ -123,6 +124,17 @@ function Register() {
         )}
 
         <form onSubmit={handleRegister}>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              style={inputStyle}
+            />
+          </div>
+
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
             <input

@@ -7,22 +7,25 @@ const User = require('../models/User');
 // Register
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    console.log('Register attempt:', email);
+    const { email, password, username } = req.body;
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already in use' });
     }
 
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(400).json({ message: 'Username already in use' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, password: hashedPassword });
+    const user = await User.create({ email, password: hashedPassword, username });
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.status(201).json({ message: 'User created successfully', token, email: user.email, userId: user._id });
+    res.status(201).json({ message: 'User created successfully', token, email: user.email, userId: user._id, username: user.username });
   } catch (err) {
-    console.log('Register error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
@@ -44,7 +47,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    res.json({ message: 'Login successful', token, email: user.email, userId: user._id });
+    res.json({ message: 'Login successful', token, email: user.email, userId: user._id, username: user.username });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
