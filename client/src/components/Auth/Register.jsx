@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import ReCAPTCHA from 'react-google-recaptcha'
 
 const POSTER_URLS = [
   'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
@@ -36,6 +37,8 @@ function Register() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
+  const [captchaToken, setCaptchaToken] = useState(null)
+  const recaptchaRef = useRef(null)
   const navigate = useNavigate()
 
   const handleRegister = async (e) => {
@@ -44,12 +47,18 @@ function Register() {
       setError('Passwords do not match')
       return
     }
+    if (!captchaToken) {
+      setError('Please complete the CAPTCHA')
+      return
+    }
     try {
-      const res = await api.post('/auth/register', { email, password, username })
+      const res = await api.post('/auth/register', { email, password, username, captchaToken })
       localStorage.setItem('user', JSON.stringify(res.data))
       navigate('/profile')
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
+      recaptchaRef.current.reset()
+      setCaptchaToken(null)
     }
   }
 
@@ -165,7 +174,7 @@ function Register() {
             </div>
           </div>
 
-          <div style={{ marginBottom: '1.5rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Confirm Password</label>
             <div style={{ position: 'relative' }}>
               <input
@@ -182,6 +191,16 @@ function Register() {
                 {showConfirmPassword ? '🙈' : '👁️'}
               </span>
             </div>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+              onChange={(token) => setCaptchaToken(token)}
+              onExpired={() => setCaptchaToken(null)}
+              theme="dark"
+            />
           </div>
 
           <button type="submit" style={{

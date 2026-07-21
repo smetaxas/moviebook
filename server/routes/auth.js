@@ -9,6 +9,15 @@ router.post('/register', async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
+    const { email, password, username, captchaToken } = req.body;
+
+    // Verify captcha
+    const captchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`, { method: 'POST' });
+    const captchaData = await captchaRes.json();
+    if (!captchaData.success) {
+        return res.status(400).json({ message: 'CAPTCHA verification failed' });
+    }
+
     const existingUser = await User.findOne({ email });
     if (existingUser) {
       return res.status(400).json({ message: 'Email already in use' });
