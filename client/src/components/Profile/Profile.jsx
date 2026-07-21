@@ -42,20 +42,21 @@ function Profile() {
   }
 
   const handlePhotoUpload = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
+  const file = e.target.files[0]
+  if (!file) return
 
-    const formData = new FormData()
-    formData.append('photo', file)
+  const formData = new FormData()
+  formData.append('photo', file)
 
-    try {
-      const res = await api.post('/user/profile/photo', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      setUser(prev => ({ ...prev, profile_photo: res.data.profile_photo }))
-    } catch (err) {
-      console.error('Failed to upload photo')
-    }
+  try {
+    const res = await api.post('/user/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+    setUser(prev => ({ ...prev, profile_photo: res.data.profile_photo }))
+    fetchProfile()
+  } catch (err) {
+    console.error('Failed to upload photo', err)
+  }
   }
 
   const formatDate = (dateString) => {
