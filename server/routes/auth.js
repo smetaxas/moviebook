@@ -43,31 +43,33 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Login attempt:', email);
 
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+    console.log('User found');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
+    console.log('Password match');
 
-    // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
+    console.log('OTP generated:', otp);
 
-    await User.findByIdAndUpdate(user._id, {
-      otp_code: otp,
-      otp_expires: otpExpires
-    });
+    await User.findByIdAndUpdate(user._id, { otp_code: otp, otp_expires: otpExpires });
+    console.log('OTP saved');
 
-    // Send OTP email
     await sendOTPEmail(user.email, otp);
+    console.log('OTP email sent');
 
     res.json({ requiresOTP: true, userId: user._id });
   } catch (err) {
+    console.log('Login error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
