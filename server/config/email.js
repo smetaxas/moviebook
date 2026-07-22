@@ -10,6 +10,14 @@ const transporter = nodemailer.createTransport({
   }
 });
 
+transporter.verify((error, success) => {
+  if (error) {
+    console.log('Email transporter error:', error);
+  } else {
+    console.log('Email transporter ready');
+  }
+});
+
 const sendOTPEmail = async (email, otp) => {
   await transporter.sendMail({
     from: `"MovieBook" <${process.env.GMAIL_USER}>`,
