@@ -7,10 +7,57 @@
 body {
   background-color: #0a0a0a;
   color: white;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
 #root {
   min-height: 100vh;
+}
+
+button {
+  transition: transform 0.2s, opacity 0.2s, filter 0.2s;
+}
+
+button:hover {
+  transform: scale(1.05);
+  filter: brightness(1.2);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+img {
+  transition: transform 0.2s, filter 0.2s;
+}
+
+img:hover {
+  transform: scale(1.05);
+  filter: brightness(1.1);
+}
+
+a {
+  transition: opacity 0.2s;
+}
+
+a:hover {
+  opacity: 0.8;
+}
+
+input, textarea {
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus, textarea:focus {
+  border-color: #e50914 !important;
+  box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.2);
+}
+
+span[style*="cursor: pointer"] {
+  transition: opacity 0.2s;
+}
+
+span[style*="cursor: pointer"]:hover {
+  opacity: 0.8;
 }

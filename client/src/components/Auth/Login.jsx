@@ -34,6 +34,10 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
+  const [show2FA, setShow2FA] = useState(false)
+  const [twoFACode, setTwoFACode] = useState('')
+  const [tempUserId, setTempUserId] = useState(null)
+  const [twoFAError, setTwoFAError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {

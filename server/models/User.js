@@ -21,6 +21,14 @@ const userSchema = new mongoose.Schema({
     profile_photo: {
         type: String,
         default: ''
+    },
+    two_factor_secret: {
+        type: String,
+        default: null
+    },
+    two_factor_enabled: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true, versionKey: false });
 

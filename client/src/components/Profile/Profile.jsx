@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
+import TwoFactorSetup from './TwoFactorSetup'
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -10,6 +11,7 @@ function Profile() {
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
+  const [show2FASetup, setShow2FASetup] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -42,21 +44,19 @@ function Profile() {
   }
 
   const handlePhotoUpload = async (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-
-  const formData = new FormData()
-  formData.append('photo', file)
-
-  try {
-    const res = await api.post('/user/profile/photo', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-    setUser(prev => ({ ...prev, profile_photo: res.data.profile_photo }))
-    fetchProfile()
-  } catch (err) {
-    console.error('Failed to upload photo', err)
-  }
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append('photo', file)
+    try {
+      const res = await api.post('/user/profile/photo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      setUser(prev => ({ ...prev, profile_photo: res.data.profile_photo }))
+      fetchProfile()
+    } catch (err) {
+      console.error('Failed to upload photo', err)
+    }
   }
 
   const formatDate = (dateString) => {
@@ -177,9 +177,24 @@ function Profile() {
             <h2 style={{ margin: '0 0 0.25rem 0', fontSize: '1.5rem' }}>{user.username || user.email}</h2>
             <p style={{ color: '#aaa', margin: 0 }}>Member since {formatDate(user.createdAt)}</p>
           </div>
-          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
-            <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
+              <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
+            </div>
+            <button
+              onClick={() => setShow2FASetup(true)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: user.two_factor_enabled ? 'rgba(0,200,0,0.1)' : 'rgba(255,255,255,0.1)',
+                color: user.two_factor_enabled ? '#00c800' : 'white',
+                border: `1px solid ${user.two_factor_enabled ? '#00c800' : 'rgba(255,255,255,0.2)'}`,
+                borderRadius: '8px', cursor: 'pointer'
+              }}
+            >
+              {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
+            </button>
           </div>
         </div>
 
@@ -237,6 +252,13 @@ function Profile() {
         <SearchModal
           onClose={() => setShowSearch(false)}
           onMovieLogged={fetchWatchedMovies}
+        />
+      )}
+
+      {show2FASetup && (
+        <TwoFactorSetup
+          onClose={() => setShow2FASetup(false)}
+          onEnabled={() => setUser(prev => ({ ...prev, two_factor_enabled: true }))}
         />
       )}
     </div>
