@@ -34,10 +34,10 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
-  const [show2FA, setShow2FA] = useState(false)
-  const [twoFACode, setTwoFACode] = useState('')
+  const [showOTP, setShowOTP] = useState(false)
+  const [otpCode, setOtpCode] = useState('')
   const [tempUserId, setTempUserId] = useState(null)
-  const [twoFAError, setTwoFAError] = useState('')
+  const [otpError, setOtpError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -52,6 +52,27 @@ function Login() {
     e.preventDefault()
     try {
       const res = await api.post('/auth/login', { email, password })
+      if (res.data.requiresOTP) {
+        setTempUserId(res.data.userId)
+        setShowOTP(true)
+      } else {
+        localStorage.setItem('user', JSON.stringify(res.data))
+        if (rememberMe) {
+          localStorage.setItem('rememberedEmail', email)
+        } else {
+          localStorage.removeItem('rememberedEmail')
+        }
+        navigate('/profile')
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Something went wrong')
+    }
+  }
+
+  const handleOTPSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      const res = await api.post('/auth/verify-otp', { userId: tempUserId, otp: otpCode })
       localStorage.setItem('user', JSON.stringify(res.data))
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', email)
@@ -60,7 +81,7 @@ function Login() {
       }
       navigate('/profile')
     } catch (err) {
-      setError(err.response?.data?.message || 'Something went wrong')
+      setOtpError(err.response?.data?.message || 'Invalid code')
     }
   }
 
@@ -125,74 +146,119 @@ function Login() {
         borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
       }}>
-        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🎬 MovieBook</h1>
-        <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
+        {!showOTP ? (
+          <>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🎬 MovieBook</h1>
+            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
 
-        {error && (
-          <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
-            {error}
-          </p>
-        )}
+            {error && (
+              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+                {error}
+              </p>
+            )}
 
-        <form onSubmit={handleLogin}>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={inputStyle}
-            />
-          </div>
+            <form onSubmit={handleLogin}>
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  style={inputStyle}
+                />
+              </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                style={{ ...inputStyle, paddingRight: '3rem' }}
-              />
-              <span
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-              >
-                {showPassword ? '🙈' : '👁️'}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    style={{ ...inputStyle, paddingRight: '3rem' }}
+                  />
+                  <span
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
+                  >
+                    {showPassword ? '🙈' : '👁️'}
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                />
+                <label htmlFor="rememberMe" style={{ color: '#aaa', fontSize: '0.9rem', cursor: 'pointer' }}>
+                  Remember me
+                </label>
+              </div>
+
+              <button type="submit" style={{
+                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                color: 'white', border: 'none', borderRadius: '8px',
+                cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
+              }}>
+                Login
+              </button>
+            </form>
+
+            <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
+              Don't have an account?{' '}
+              <span onClick={() => navigate('/register')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+                Register
               </span>
-            </div>
-          </div>
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>📧 Check your email</h1>
+            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>We sent a 6-digit code to <strong style={{ color: 'white' }}>{email}</strong></p>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-            <input
-              type="checkbox"
-              id="rememberMe"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-            />
-            <label htmlFor="rememberMe" style={{ color: '#aaa', fontSize: '0.9rem', cursor: 'pointer' }}>
-              Remember me
-            </label>
-          </div>
+            {otpError && (
+              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+                {otpError}
+              </p>
+            )}
 
-          <button type="submit" style={{
-            width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
-            color: 'white', border: 'none', borderRadius: '8px',
-            cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
-          }}>
-            Login
-          </button>
-        </form>
+            <form onSubmit={handleOTPSubmit}>
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>6-digit code</label>
+                <input
+                  type="text"
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value)}
+                  maxLength={6}
+                  placeholder="000000"
+                  required
+                  autoFocus
+                  style={{ ...inputStyle, textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' }}
+                />
+              </div>
 
-        <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-          Don't have an account?{' '}
-          <span onClick={() => navigate('/register')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
-            Register
-          </span>
-        </p>
+              <button type="submit" style={{
+                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                color: 'white', border: 'none', borderRadius: '8px',
+                cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
+              }}>
+                Verify
+              </button>
+            </form>
+
+            <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
+              <span onClick={() => setShowOTP(false)} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+                ← Back to Login
+              </span>
+            </p>
+          </>
+        )}
       </div>
     </div>
   )
