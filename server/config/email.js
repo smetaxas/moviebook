@@ -1,26 +1,10 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 25,
-  secure: false,
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
-  }
-});
-
-transporter.verify((error, success) => {
-  if (error) {
-    console.log('Email transporter error:', error);
-  } else {
-    console.log('Email transporter ready');
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendOTPEmail = async (email, otp) => {
-  await transporter.sendMail({
-    from: `"MovieBook" <${process.env.GMAIL_USER}>`,
+  await resend.emails.send({
+    from: 'MovieBook <onboarding@resend.dev>',
     to: email,
     subject: 'Your MovieBook Login Code',
     html: `
