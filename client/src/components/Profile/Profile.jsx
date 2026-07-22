@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
-import TwoFactorSetup from './TwoFactorSetup'
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -11,7 +10,6 @@ function Profile() {
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
-  const [show2FASetup, setShow2FASetup] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -178,23 +176,9 @@ function Profile() {
             <p style={{ color: '#aaa', margin: 0 }}>Member since {formatDate(user.createdAt)}</p>
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
-              <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
-            </div>
-            <button
-              onClick={() => setShow2FASetup(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: user.two_factor_enabled ? 'rgba(0,200,0,0.1)' : 'rgba(255,255,255,0.1)',
-                color: user.two_factor_enabled ? '#00c800' : 'white',
-                border: `1px solid ${user.two_factor_enabled ? '#00c800' : 'rgba(255,255,255,0.2)'}`,
-                borderRadius: '8px', cursor: 'pointer'
-              }}
-            >
-              {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
-            </button>
+          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
+            <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
           </div>
         </div>
 
@@ -252,13 +236,6 @@ function Profile() {
         <SearchModal
           onClose={() => setShowSearch(false)}
           onMovieLogged={fetchWatchedMovies}
-        />
-      )}
-
-      {show2FASetup && (
-        <TwoFactorSetup
-          onClose={() => setShow2FASetup(false)}
-          onEnabled={() => setUser(prev => ({ ...prev, two_factor_enabled: true }))}
         />
       )}
     </div>
