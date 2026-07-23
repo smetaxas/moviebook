@@ -43,7 +43,6 @@ function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
-    console.log('captchaToken:', captchaToken)
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')

@@ -13,7 +13,6 @@ router.post('/register', async (req, res) => {
     if (captchaToken !== 'localhost-bypass') {
       const captchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`, { method: 'POST' });
       const captchaData = await captchaRes.json();
-      console.log('CAPTCHA response:', captchaData);
       if (!captchaData.success) {
         return res.status(400).json({ message: 'CAPTCHA verification failed' });
       }
