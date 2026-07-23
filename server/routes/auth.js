@@ -13,6 +13,7 @@ router.post('/register', async (req, res) => {
     if (captchaToken !== 'localhost-bypass') {
       const captchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`, { method: 'POST' });
       const captchaData = await captchaRes.json();
+      console.log('CAPTCHA response:', captchaData);
       if (!captchaData.success) {
         return res.status(400).json({ message: 'CAPTCHA verification failed' });
       }
@@ -37,46 +38,32 @@ router.post('/register', async (req, res) => {
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
-
-  const captchaRes = await fetch(`https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET_KEY}&response=${captchaToken}`, { method: 'POST' });
-  const captchaData = await captchaRes.json();
-  console.log('CAPTCHA response:', captchaData);
-  if (!captchaData.success) {
-      return res.status(400).json({ message: 'CAPTCHA verification failed' });
-  }
 });
 
 // Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    console.log('Login attempt:', email);
 
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
-    console.log('User found');
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
-    console.log('Password match');
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    console.log('OTP generated:', otp);
 
     await User.findByIdAndUpdate(user._id, { otp_code: otp, otp_expires: otpExpires });
-    console.log('OTP saved');
 
     await sendOTPEmail(user.email, otp);
-    console.log('OTP email sent');
 
     res.json({ requiresOTP: true, userId: user._id });
   } catch (err) {
-    console.log('Login error:', err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
@@ -99,7 +86,6 @@ router.post('/verify-otp', async (req, res) => {
       return res.status(400).json({ message: 'Code has expired' });
     }
 
-    // Clear OTP
     await User.findByIdAndUpdate(userId, {
       otp_code: null,
       otp_expires: null
