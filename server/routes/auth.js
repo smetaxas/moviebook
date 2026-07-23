@@ -25,10 +25,9 @@ router.post('/register', async (req, res) => {
 
     const existingUsername = await User.findOne({ username });
     if (existingUsername) {
-       // Generate suggestions
       const suggestions = [
-    `    ${username}${Math.floor(Math.random() * 100)}`,
-    `    ${username}_${Math.floor(Math.random() * 100)}`,
+        `${username}${Math.floor(Math.random() * 100)}`,
+        `${username}_${Math.floor(Math.random() * 100)}`,
         `${username}${new Date().getFullYear()}`
       ]
       return res.status(400).json({ message: 'Username already in use', suggestions });
