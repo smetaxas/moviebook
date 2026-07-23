@@ -38,8 +38,26 @@ function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [captchaToken, setCaptchaToken] = useState(null)
+  const [passwordStrength, setPasswordStrength] = useState('')
+  const [usernameSuggestions, setUsernameSuggestions] = useState([])
   const recaptchaRef = useRef(null)
   const navigate = useNavigate()
+
+  const checkPasswordStrength = (pass) => {
+    if (pass.length === 0) return ''
+    if (pass.length < 6) return 'weak'
+
+    const hasUpper = /[A-Z]/.test(pass)
+    const hasLower = /[a-z]/.test(pass)
+    const hasNumber = /[0-9]/.test(pass)
+    const hasSpecial = /[!@#$%^&*]/.test(pass)
+
+    const score = [hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length
+
+    if (pass.length >= 10 && score >= 3) return 'strong'
+    if (pass.length >= 8 && score >= 2) return 'medium'
+    return 'weak'
+  }
 
   const handleRegister = async (e) => {
     e.preventDefault()
@@ -66,6 +84,9 @@ function Register() {
       navigate('/profile')
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
+      if (err.response?.data?.suggestions) {
+        setUsernameSuggestions(err.response.data.suggestions)
+      }
       if (recaptchaRef.current) recaptchaRef.current.reset()
       setCaptchaToken(null)
     }
@@ -79,6 +100,8 @@ function Register() {
     border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)',
     color: 'white', boxSizing: 'border-box', fontSize: '1rem', outline: 'none'
   }
+
+  const strengthColor = passwordStrength === 'weak' ? '#e50914' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
 
   return (
     <div style={{
@@ -142,17 +165,36 @@ function Register() {
         )}
 
         <form onSubmit={handleRegister}>
+          {/* Username */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
             <input
               type="text"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
               required
+              autoComplete="username"
               style={inputStyle}
             />
+            {usernameSuggestions.length > 0 && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <p style={{ color: '#aaa', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Try one of these:</p>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {usernameSuggestions.map((suggestion, i) => (
+                    <span
+                      key={i}
+                      onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
+                      style={{ padding: '0.25rem 0.5rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid #e50914', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', color: '#e50914' }}
+                    >
+                      {suggestion}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
+          {/* Email */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
             <input
@@ -160,18 +202,24 @@ function Register() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              autoComplete="email"
               style={inputStyle}
             />
           </div>
 
+          {/* Password */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setPasswordStrength(checkPasswordStrength(e.target.value))
+                }}
                 required
+                autoComplete="new-password"
                 style={{ ...inputStyle, paddingRight: '3rem' }}
               />
               <span
@@ -181,9 +229,22 @@ function Register() {
                 {showPassword ? '🙈' : '👁️'}
               </span>
             </div>
+            {passwordStrength && (
+              <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
+                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e50914' }} />
+                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
+                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
+                </div>
+                <p style={{ color: strengthColor, fontSize: '0.8rem', margin: 0 }}>
+                  {passwordStrength === 'weak' ? '⚠️ Weak password' : passwordStrength === 'medium' ? '👍 Medium password' : '✅ Strong password'}
+                </p>
+              </div>
+            )}
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
+          {/* Confirm Password */}
+          <div style={{ marginBottom: '1.5rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Confirm Password</label>
             <div style={{ position: 'relative' }}>
               <input
@@ -191,6 +252,7 @@ function Register() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                autoComplete="new-password"
                 style={{ ...inputStyle, paddingRight: '3rem' }}
               />
               <span
@@ -202,6 +264,7 @@ function Register() {
             </div>
           </div>
 
+          {/* reCAPTCHA */}
           <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
             <ReCAPTCHA
               ref={recaptchaRef}
