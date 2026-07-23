@@ -43,21 +43,31 @@ function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
+    console.log('captchaToken:', captchaToken)
+
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
     }
-    if (!captchaToken) {
+
+    const isLocalhost = window.location.hostname === 'localhost'
+    if (!captchaToken && !isLocalhost) {
       setError('Please complete the CAPTCHA')
       return
     }
+
     try {
-      const res = await api.post('/auth/register', { email, password, username, captchaToken })
+      const res = await api.post('/auth/register', {
+        email,
+        password,
+        username,
+        captchaToken: captchaToken || 'localhost-bypass'
+      })
       localStorage.setItem('user', JSON.stringify(res.data))
       navigate('/profile')
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
-      recaptchaRef.current.reset()
+      if (recaptchaRef.current) recaptchaRef.current.reset()
       setCaptchaToken(null)
     }
   }
