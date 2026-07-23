@@ -75,9 +75,7 @@ function Register() {
 
     try {
       const res = await api.post('/auth/register', {
-        email,
-        password,
-        username,
+        email, password, username,
         captchaToken: captchaToken || 'localhost-bypass'
       })
       localStorage.setItem('user', JSON.stringify(res.data))
@@ -164,12 +162,13 @@ function Register() {
           </p>
         )}
 
-        <form onSubmit={handleRegister}>
+        <form onSubmit={handleRegister} autoComplete="on">
           {/* Username */}
           <div style={{ marginBottom: '1rem' }}>
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
             <input
               type="text"
+              name="username"
               value={username}
               onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
               required
@@ -199,6 +198,7 @@ function Register() {
             <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
             <input
               type="email"
+              name="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -213,6 +213,7 @@ function Register() {
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? 'text' : 'password'}
+                name="password"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value)
@@ -249,6 +250,7 @@ function Register() {
             <div style={{ position: 'relative' }}>
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
+                name="confirm-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
