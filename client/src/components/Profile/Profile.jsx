@@ -4,6 +4,7 @@ import api from '../../api/axios'
 import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
+import TwoFactorSetup from './TwoFactorSetup'
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -13,6 +14,7 @@ function Profile() {
   const [showSearch, setShowSearch] = useState(false)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const [selectedTrendingMovie, setSelectedTrendingMovie] = useState(null)
+  const [show2FASetup, setShow2FASetup] = useState(false)
   const [movieToLog, setMovieToLog] = useState(null)
   const navigate = useNavigate()
 
@@ -142,6 +144,7 @@ function Profile() {
           alignItems: 'center',
           gap: '1.5rem'
         }}>
+          {/* Avatar */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {user.profile_photo ? (
               <img
@@ -189,9 +192,23 @@ function Profile() {
             <p style={{ color: '#aaa', margin: 0 }}>Member since {formatDate(user.createdAt)}</p>
           </div>
 
-          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
-            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
-            <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
+              <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
+            </div>
+            <button
+              onClick={() => setShow2FASetup(true)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: user.two_factor_enabled ? 'rgba(0,200,0,0.1)' : 'rgba(255,255,255,0.1)',
+                color: user.two_factor_enabled ? '#00c800' : 'white',
+                border: `1px solid ${user.two_factor_enabled ? '#00c800' : 'rgba(255,255,255,0.2)'}`,
+                borderRadius: '8px', cursor: 'pointer'
+              }}
+            >
+              {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
+            </button>
           </div>
         </div>
 
@@ -218,16 +235,9 @@ function Profile() {
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
                 {movie.movie_poster ? (
-                  <img
-                    src={movie.movie_poster}
-                    alt={movie.movie_title}
-                    style={{ width: '100%', borderRadius: '8px', display: 'block' }}
-                  />
+                  <img src={movie.movie_poster} alt={movie.movie_title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
                 ) : (
-                  <div style={{
-                    width: '100%', height: '225px', backgroundColor: '#1a1a1a',
-                    borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                  }}>
+                  <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <span style={{ color: '#aaa' }}>No Poster</span>
                   </div>
                 )}
@@ -240,34 +250,31 @@ function Profile() {
 
         {/* Trending Movies */}
         <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🔥 Trending This Week</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
-          {trendingMovies.map(movie => (
-            <div
-              key={movie.tmdb_id}
-              onClick={() => setSelectedTrendingMovie(movie)}
-              style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-              onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-            >
-              {movie.poster_url ? (
-                <img
-                  src={movie.poster_url}
-                  alt={movie.title}
-                  style={{ width: '100%', borderRadius: '8px', display: 'block' }}
-                />
-              ) : (
-                <div style={{
-                  width: '100%', height: '225px', backgroundColor: '#1a1a1a',
-                  borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <span style={{ color: '#aaa' }}>No Poster</span>
-                </div>
-              )}
-              <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.title}</p>
-              <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>{movie.year}</p>
-            </div>
-          ))}
-        </div>
+        {trendingMovies.length === 0 ? (
+          <p style={{ color: '#aaa' }}>Loading trending movies...</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+            {trendingMovies.map(movie => (
+              <div
+                key={movie.tmdb_id}
+                onClick={() => setSelectedTrendingMovie(movie)}
+                style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                {movie.poster_url ? (
+                  <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#aaa' }}>No Poster</span>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.title}</p>
+                <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>{movie.year}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {selectedWatchedMovie && (
@@ -291,8 +298,10 @@ function Profile() {
       {movieToLog && (
         <SearchModal
           onClose={() => setMovieToLog(null)}
-          onMovieLogged={fetchWatchedMovies}
-          initialMovie={movieToLog}
+          onMovieLogged={() => {
+            fetchWatchedMovies()
+            setMovieToLog(null)
+          }}
         />
       )}
 
@@ -300,6 +309,15 @@ function Profile() {
         <SearchModal
           onClose={() => setShowSearch(false)}
           onMovieLogged={fetchWatchedMovies}
+        />
+      )}
+
+      {show2FASetup && (
+        <TwoFactorSetup
+          onClose={() => setShow2FASetup(false)}
+          isEnabled={user.two_factor_enabled}
+          onEnabled={() => setUser(prev => ({ ...prev, two_factor_enabled: true }))}
+          onDisabled={() => setUser(prev => ({ ...prev, two_factor_enabled: false }))}
         />
       )}
     </div>

@@ -34,10 +34,10 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
-  const [showOTP, setShowOTP] = useState(false)
-  const [otpCode, setOtpCode] = useState('')
+  const [show2FA, setShow2FA] = useState(false)
+  const [twoFACode, setTwoFACode] = useState('')
   const [tempUserId, setTempUserId] = useState(null)
-  const [otpError, setOtpError] = useState('')
+  const [twoFAError, setTwoFAError] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -52,9 +52,9 @@ function Login() {
     e.preventDefault()
     try {
       const res = await api.post('/auth/login', { email, password })
-      if (res.data.requiresOTP) {
+      if (res.data.requires2FA) {
         setTempUserId(res.data.userId)
-        setShowOTP(true)
+        setShow2FA(true)
       } else {
         localStorage.setItem('user', JSON.stringify(res.data))
         if (rememberMe) {
@@ -69,10 +69,10 @@ function Login() {
     }
   }
 
-  const handleOTPSubmit = async (e) => {
+  const handle2FASubmit = async (e) => {
     e.preventDefault()
     try {
-      const res = await api.post('/auth/verify-otp', { userId: tempUserId, otp: otpCode })
+      const res = await api.post('/2fa/validate', { userId: tempUserId, token: twoFACode })
       localStorage.setItem('user', JSON.stringify(res.data))
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', email)
@@ -81,7 +81,7 @@ function Login() {
       }
       navigate('/profile')
     } catch (err) {
-      setOtpError(err.response?.data?.message || 'Invalid code')
+      setTwoFAError(err.response?.data?.message || 'Invalid code')
     }
   }
 
@@ -146,7 +146,7 @@ function Login() {
         borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
       }}>
-        {!showOTP ? (
+        {!show2FA ? (
           <>
             <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🎬 MovieBook</h1>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
@@ -165,6 +165,7 @@ function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                   style={inputStyle}
                 />
               </div>
@@ -177,6 +178,7 @@ function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
+                    autoComplete="current-password"
                     style={{ ...inputStyle, paddingRight: '3rem' }}
                   />
                   <span
@@ -219,22 +221,22 @@ function Login() {
           </>
         ) : (
           <>
-            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>📧 Check your email</h1>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>We sent a 6-digit code to <strong style={{ color: 'white' }}>{email}</strong></p>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🔐 2FA</h1>
+            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Open your authenticator app and enter the 6-digit code</p>
 
-            {otpError && (
+            {twoFAError && (
               <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
-                {otpError}
+                {twoFAError}
               </p>
             )}
 
-            <form onSubmit={handleOTPSubmit}>
+            <form onSubmit={handle2FASubmit}>
               <div style={{ marginBottom: '1.5rem' }}>
                 <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>6-digit code</label>
                 <input
                   type="text"
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
+                  value={twoFACode}
+                  onChange={(e) => setTwoFACode(e.target.value)}
                   maxLength={6}
                   placeholder="000000"
                   required
@@ -253,7 +255,7 @@ function Login() {
             </form>
 
             <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <span onClick={() => setShowOTP(false)} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+              <span onClick={() => setShow2FA(false)} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
                 ← Back to Login
               </span>
             </p>

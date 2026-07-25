@@ -3,7 +3,6 @@ const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const { sendOTPEmail } = require('../config/email');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -59,41 +58,9 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    await User.findByIdAndUpdate(user._id, { otp_code: otp, otp_expires: otpExpires });
-
-    await sendOTPEmail(user.email, otp);
-
-    res.json({ requiresOTP: true, userId: user._id });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// Verify OTP
-router.post('/verify-otp', async (req, res) => {
-  try {
-    const { userId, otp } = req.body;
-
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    if (user.two_factor_enabled) {
+      return res.json({ requires2FA: true, userId: user._id });
     }
-
-    if (user.otp_code !== otp) {
-      return res.status(400).json({ message: 'Invalid code' });
-    }
-
-    if (new Date() > user.otp_expires) {
-      return res.status(400).json({ message: 'Code has expired' });
-    }
-
-    await User.findByIdAndUpdate(userId, {
-      otp_code: null,
-      otp_expires: null
-    });
 
     const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
