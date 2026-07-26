@@ -11,6 +11,7 @@ function Profile() {
   const [user, setUser] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
   const [trendingMovies, setTrendingMovies] = useState([])
+  const [upcomingMovies, setUpcomingMovies] = useState([])
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
@@ -25,6 +26,7 @@ function Profile() {
     fetchProfile()
     fetchWatchedMovies()
     fetchTrendingMovies()
+    fetchUpcomingMovies()
   }, [])
 
   const fetchProfile = async () => {
@@ -52,6 +54,15 @@ function Profile() {
       setTrendingMovies(res.data)
     } catch (err) {
       console.error('Failed to load trending movies')
+    }
+  }
+
+  const fetchUpcomingMovies = async () => {
+    try {
+      const res = await api.get('/movies/upcoming')
+      setUpcomingMovies(res.data)
+    } catch (err) {
+      console.error('Failed to load upcoming movies')
     }
   }
 
@@ -112,7 +123,6 @@ function Profile() {
         zIndex: 100,
         boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}>
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontSize: '1.5rem' }}>🎬</span>
           <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
@@ -120,7 +130,6 @@ function Profile() {
           </span>
         </div>
 
-        {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             onClick={() => setShowSearch(true)}
@@ -156,11 +165,7 @@ function Profile() {
               }}
             >
               {user.profile_photo ? (
-                <img
-                  src={user.profile_photo}
-                  alt="Profile"
-                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                />
+                <img src={user.profile_photo} alt="Profile" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }} />
               ) : (
                 <div style={{
                   width: '32px', height: '32px', borderRadius: '50%',
@@ -176,10 +181,7 @@ function Profile() {
 
             {showDropdown && (
               <>
-                <div
-                  onClick={() => setShowDropdown(false)}
-                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 }}
-                />
+                <div onClick={() => setShowDropdown(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 }} />
                 <div style={{
                   position: 'absolute', right: 0, top: '110%',
                   backgroundColor: '#1a1a1a',
@@ -194,33 +196,20 @@ function Profile() {
                   </div>
                   <button
                     onClick={() => { setShow2FASetup(true); setShowDropdown(false) }}
-                    style={{
-                      width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
-                      color: user.two_factor_enabled ? '#00c800' : 'white',
-                      border: 'none', borderRadius: '8px', cursor: 'pointer',
-                      textAlign: 'left', fontSize: '0.9rem'
-                    }}
+                    style={{ width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent', color: user.two_factor_enabled ? '#00c800' : 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem' }}
                   >
                     {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
                   </button>
                   <button
                     onClick={() => { handleLogout(); setShowDropdown(false) }}
-                    style={{
-                      width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
-                      color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                      textAlign: 'left', fontSize: '0.9rem'
-                    }}
+                    style={{ width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem' }}
                   >
                     🚪 Logout
                   </button>
                   <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
                     <button
                       onClick={() => { setShowDeleteAccount(true); setShowDropdown(false) }}
-                      style={{
-                        width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
-                        color: '#e50914', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                        textAlign: 'left', fontSize: '0.9rem'
-                      }}
+                      style={{ width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent', color: '#e50914', border: 'none', borderRadius: '8px', cursor: 'pointer', textAlign: 'left', fontSize: '0.9rem' }}
                     >
                       🗑️ Delete Account
                     </button>
@@ -237,54 +226,21 @@ function Profile() {
         <div style={{
           backgroundColor: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '16px',
-          padding: '2rem',
-          marginBottom: '2rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.5rem'
+          borderRadius: '16px', padding: '2rem', marginBottom: '2rem',
+          display: 'flex', alignItems: 'center', gap: '1.5rem'
         }}>
-          {/* Avatar */}
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {user.profile_photo ? (
-              <img
-                src={user.profile_photo}
-                alt="Profile"
-                style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer' }}
-                onClick={() => document.getElementById('photoInput').click()}
-              />
+              <img src={user.profile_photo} alt="Profile" style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', cursor: 'pointer' }} onClick={() => document.getElementById('photoInput').click()} />
             ) : (
-              <div
-                onClick={() => document.getElementById('photoInput').click()}
-                style={{
-                  width: '80px', height: '80px', borderRadius: '50%',
-                  backgroundColor: '#e50914',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '2rem', cursor: 'pointer'
-                }}
-              >
+              <div onClick={() => document.getElementById('photoInput').click()} style={{ width: '80px', height: '80px', borderRadius: '50%', backgroundColor: '#e50914', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', cursor: 'pointer' }}>
                 {(user.username || user.email)[0].toUpperCase()}
               </div>
             )}
-            <div
-              onClick={() => document.getElementById('photoInput').click()}
-              style={{
-                position: 'absolute', bottom: 0, right: 0,
-                backgroundColor: '#333', borderRadius: '50%',
-                width: '24px', height: '24px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', fontSize: '0.7rem'
-              }}
-            >
+            <div onClick={() => document.getElementById('photoInput').click()} style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#333', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.7rem' }}>
               📷
             </div>
-            <input
-              id="photoInput"
-              type="file"
-              accept="image/*"
-              style={{ display: 'none' }}
-              onChange={handlePhotoUpload}
-            />
+            <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
           </div>
 
           <div>
@@ -301,25 +257,14 @@ function Profile() {
         {/* My Watched Movies */}
         <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>My Watched Movies</h3>
         {watchedMovies.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '3rem',
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)',
-            marginBottom: '2rem'
-          }}>
+          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
             <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
             <p style={{ color: '#aaa' }}>No watched movies yet. Search and log some movies!</p>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
             {watchedMovies.map(movie => (
-              <div
-                key={movie._id}
-                onClick={() => setSelectedWatchedMovie(movie._id)}
-                style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-              >
+              <div key={movie._id} onClick={() => setSelectedWatchedMovie(movie._id)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
                 {movie.movie_poster ? (
                   <img src={movie.movie_poster} alt={movie.movie_title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
                 ) : (
@@ -339,15 +284,9 @@ function Profile() {
         {trendingMovies.length === 0 ? (
           <p style={{ color: '#aaa' }}>Loading trending movies...</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
             {trendingMovies.map(movie => (
-              <div
-                key={movie.tmdb_id}
-                onClick={() => setSelectedTrendingMovie(movie)}
-                style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-              >
+              <div key={movie.tmdb_id} onClick={() => setSelectedTrendingMovie(movie)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
                 {movie.poster_url ? (
                   <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
                 ) : (
@@ -357,6 +296,28 @@ function Profile() {
                 )}
                 <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.title}</p>
                 <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>{movie.year}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upcoming Movies */}
+        <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎟️ Coming Soon</h3>
+        {upcomingMovies.length === 0 ? (
+          <p style={{ color: '#aaa' }}>Loading upcoming movies...</p>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+            {upcomingMovies.map(movie => (
+              <div key={movie.tmdb_id} onClick={() => setSelectedTrendingMovie(movie)} style={{ cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                {movie.poster_url ? (
+                  <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ color: '#aaa' }}>No Poster</span>
+                  </div>
+                )}
+                <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.title}</p>
+                <p style={{ fontSize: '0.75rem', color: '#e50914', margin: 0 }}>📅 {movie.release_date}</p>
               </div>
             ))}
           </div>
@@ -410,14 +371,15 @@ function Profile() {
       )}
 
       {showDeleteAccount && (
-          <ConfirmModal
+        <ConfirmModal
           icon="⚠️"
           title="Delete Account"
           message="Are you sure you want to delete your account? This action cannot be undone!"
+          confirmText="Delete"
           onConfirm={handleDeleteAccount}
           onCancel={() => setShowDeleteAccount(false)}
-          />
-    )}
+        />
+      )}
     </div>
   )
 }

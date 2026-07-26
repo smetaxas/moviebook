@@ -85,6 +85,27 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// Get upcoming movies from TMDB
+router.get('/upcoming', requireAuth, async (req, res) => {
+  try {
+    const response = await fetch(
+      `https://api.themoviedb.org/3/movie/upcoming?api_key=${process.env.TMDB_API_KEY}&language=en-US&region=US`
+    );
+    const data = await response.json();
+    const movies = data.results.map(movie => ({
+      tmdb_id: movie.id,
+      title: movie.title,
+      year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+      release_date: movie.release_date,
+      description: movie.overview,
+      poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+    }));
+    res.json(movies);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Get single movie
 router.get('/:id', requireAuth, async (req, res) => {
   try {
