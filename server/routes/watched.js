@@ -118,4 +118,43 @@ router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
   }
 });
 
+// Update rating
+router.patch('/:id/rating', requireAuth, async (req, res) => {
+  try {
+    const { rating } = req.body;
+
+    const watchedMovie = await WatchedMovie.findOneAndUpdate(
+      { _id: req.params.id, user_id: req.userId },
+      { rating },
+      { new: true }
+    ).select('-__v');
+
+    if (!watchedMovie) {
+      return res.status(404).json({ message: 'Watched movie not found' });
+    }
+
+    res.json(watchedMovie);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Delete watched movie
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const watchedMovie = await WatchedMovie.findOneAndDelete({
+      _id: req.params.id,
+      user_id: req.userId
+    });
+
+    if (!watchedMovie) {
+      return res.status(404).json({ message: 'Watched movie not found' });
+    }
+
+    res.json({ message: 'Movie deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;

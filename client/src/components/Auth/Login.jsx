@@ -148,7 +148,7 @@ function Login() {
       }}>
         {!show2FA ? (
           <>
-            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🎬 MovieBook</h1>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>CineLog</h1>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
 
             {error && (

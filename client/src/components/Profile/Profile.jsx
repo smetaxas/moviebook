@@ -86,49 +86,82 @@ function Profile() {
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       {/* Navbar */}
       <div style={{
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
-        padding: '1rem 2rem',
+        backgroundColor: 'rgba(0,0,0,0.95)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(229,9,20,0.3)',
+        padding: '0 2rem',
+        height: '64px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         position: 'sticky',
         top: 0,
-        zIndex: 100
+        zIndex: 100,
+        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🎬 MovieBook</h1>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '1.5rem' }}>🎬</span>
+          <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
+            Cine<span style={{ color: '#e50914' }}>Log</span>
+          </span>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <button
             onClick={() => setShowSearch(true)}
             style={{
-              padding: '0.5rem 1rem', backgroundColor: '#e50914',
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.5rem 1.25rem', backgroundColor: '#e50914',
               color: 'white', border: 'none', borderRadius: '8px',
-              cursor: 'pointer', fontWeight: 'bold'
+              cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
+              transition: 'background-color 0.2s'
             }}
           >
-            🔍 Search Movies
+            🔍 Search
           </button>
           <button
             onClick={() => navigate('/feed')}
             style={{
-              padding: '0.5rem 1rem', backgroundColor: 'rgba(255,255,255,0.1)',
-              color: 'white', border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '8px', cursor: 'pointer'
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.5rem 1.25rem', backgroundColor: 'rgba(255,255,255,0.08)',
+              color: 'white', border: '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem',
+              transition: 'background-color 0.2s'
             }}
           >
-            🌍 Community Feed
+            🌍 Community
           </button>
-          <button
+
+          {/* Avatar */}
+          <div
             onClick={handleLogout}
             style={{
-              padding: '0.5rem 1rem', backgroundColor: 'transparent',
-              color: '#aaa', border: '1px solid rgba(255,255,255,0.1)',
-              borderRadius: '8px', cursor: 'pointer'
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              cursor: 'pointer', padding: '0.25rem 0.75rem',
+              borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+              transition: 'background-color 0.2s'
             }}
           >
-            Logout
-          </button>
+            {user.profile_photo ? (
+              <img
+                src={user.profile_photo}
+                alt="Profile"
+                style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#e50914',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 'bold', fontSize: '0.9rem'
+              }}>
+                {(user.username || user.email)[0].toUpperCase()}
+              </div>
+            )}
+            <span style={{ color: '#aaa', fontSize: '0.85rem' }}>Logout</span>
+          </div>
         </div>
       </div>
 
@@ -281,6 +314,8 @@ function Profile() {
         <MovieDetailModal
           watchedMovieId={selectedWatchedMovie}
           onClose={() => setSelectedWatchedMovie(null)}
+          onDeleted={fetchWatchedMovies}
+          onRatingUpdated={fetchWatchedMovies}
         />
       )}
 

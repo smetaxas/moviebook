@@ -82,7 +82,7 @@ function CommunityFeed() {
         top: 0,
         zIndex: 100
       }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>🎬 MovieBook</h1>
+        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>CineLog</h1>
         <button
           onClick={() => navigate('/profile')}
           style={{
