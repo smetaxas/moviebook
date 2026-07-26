@@ -5,6 +5,7 @@ import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
 import TwoFactorSetup from './TwoFactorSetup'
+import ConfirmModal from '../UI/ConfirmModal'
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -16,6 +17,8 @@ function Profile() {
   const [selectedTrendingMovie, setSelectedTrendingMovie] = useState(null)
   const [show2FASetup, setShow2FASetup] = useState(false)
   const [movieToLog, setMovieToLog] = useState(null)
+  const [showDropdown, setShowDropdown] = useState(false)
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -55,6 +58,16 @@ function Profile() {
   const handleLogout = () => {
     localStorage.removeItem('user')
     navigate('/login')
+  }
+
+  const handleDeleteAccount = async () => {
+    try {
+      await api.delete('/user/profile')
+      localStorage.removeItem('user')
+      navigate('/login')
+    } catch (err) {
+      console.error('Failed to delete account')
+    }
   }
 
   const handlePhotoUpload = async (e) => {
@@ -115,8 +128,7 @@ function Profile() {
               display: 'flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.5rem 1.25rem', backgroundColor: '#e50914',
               color: 'white', border: 'none', borderRadius: '8px',
-              cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem',
-              transition: 'background-color 0.2s'
+              cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem'
             }}
           >
             🔍 Search
@@ -127,40 +139,95 @@ function Profile() {
               display: 'flex', alignItems: 'center', gap: '0.5rem',
               padding: '0.5rem 1.25rem', backgroundColor: 'rgba(255,255,255,0.08)',
               color: 'white', border: '1px solid rgba(255,255,255,0.15)',
-              borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem',
-              transition: 'background-color 0.2s'
+              borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem'
             }}
           >
             🌍 Community
           </button>
 
-          {/* Avatar */}
-          <div
-            onClick={handleLogout}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              cursor: 'pointer', padding: '0.25rem 0.75rem',
-              borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
-              transition: 'background-color 0.2s'
-            }}
-          >
-            {user.profile_photo ? (
-              <img
-                src={user.profile_photo}
-                alt="Profile"
-                style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-              />
-            ) : (
-              <div style={{
-                width: '32px', height: '32px', borderRadius: '50%',
-                backgroundColor: '#e50914',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 'bold', fontSize: '0.9rem'
-              }}>
-                {(user.username || user.email)[0].toUpperCase()}
-              </div>
+          {/* Avatar Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <div
+              onClick={() => setShowDropdown(!showDropdown)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                cursor: 'pointer', padding: '0.25rem 0.75rem',
+                borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)',
+              }}
+            >
+              {user.profile_photo ? (
+                <img
+                  src={user.profile_photo}
+                  alt="Profile"
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div style={{
+                  width: '32px', height: '32px', borderRadius: '50%',
+                  backgroundColor: '#e50914',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 'bold', fontSize: '0.9rem'
+                }}>
+                  {(user.username || user.email)[0].toUpperCase()}
+                </div>
+              )}
+              <span style={{ color: '#aaa', fontSize: '0.85rem' }}>▾</span>
+            </div>
+
+            {showDropdown && (
+              <>
+                <div
+                  onClick={() => setShowDropdown(false)}
+                  style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 200 }}
+                />
+                <div style={{
+                  position: 'absolute', right: 0, top: '110%',
+                  backgroundColor: '#1a1a1a',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '12px', padding: '0.5rem',
+                  minWidth: '200px', zIndex: 201,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+                }}>
+                  <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '0.5rem' }}>
+                    <p style={{ color: 'white', fontWeight: 'bold', margin: 0 }}>{user.username}</p>
+                    <p style={{ color: '#aaa', fontSize: '0.8rem', margin: 0 }}>{user.email}</p>
+                  </div>
+                  <button
+                    onClick={() => { setShow2FASetup(true); setShowDropdown(false) }}
+                    style={{
+                      width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
+                      color: user.two_factor_enabled ? '#00c800' : 'white',
+                      border: 'none', borderRadius: '8px', cursor: 'pointer',
+                      textAlign: 'left', fontSize: '0.9rem'
+                    }}
+                  >
+                    {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
+                  </button>
+                  <button
+                    onClick={() => { handleLogout(); setShowDropdown(false) }}
+                    style={{
+                      width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
+                      color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer',
+                      textAlign: 'left', fontSize: '0.9rem'
+                    }}
+                  >
+                    🚪 Logout
+                  </button>
+                  <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                    <button
+                      onClick={() => { setShowDeleteAccount(true); setShowDropdown(false) }}
+                      style={{
+                        width: '100%', padding: '0.6rem 1rem', backgroundColor: 'transparent',
+                        color: '#e50914', border: 'none', borderRadius: '8px', cursor: 'pointer',
+                        textAlign: 'left', fontSize: '0.9rem'
+                      }}
+                    >
+                      🗑️ Delete Account
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
-            <span style={{ color: '#aaa', fontSize: '0.85rem' }}>Logout</span>
           </div>
         </div>
       </div>
@@ -225,23 +292,9 @@ function Profile() {
             <p style={{ color: '#aaa', margin: 0 }}>Member since {formatDate(user.createdAt)}</p>
           </div>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <div style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
-              <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
-            </div>
-            <button
-              onClick={() => setShow2FASetup(true)}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: user.two_factor_enabled ? 'rgba(0,200,0,0.1)' : 'rgba(255,255,255,0.1)',
-                color: user.two_factor_enabled ? '#00c800' : 'white',
-                border: `1px solid ${user.two_factor_enabled ? '#00c800' : 'rgba(255,255,255,0.2)'}`,
-                borderRadius: '8px', cursor: 'pointer'
-              }}
-            >
-              {user.two_factor_enabled ? '🔐 2FA On' : '🔓 Enable 2FA'}
-            </button>
+          <div style={{ marginLeft: 'auto', textAlign: 'center' }}>
+            <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: 0 }}>{watchedMovies.length}</p>
+            <p style={{ color: '#aaa', margin: 0, fontSize: '0.9rem' }}>Movies Watched</p>
           </div>
         </div>
 
@@ -355,6 +408,16 @@ function Profile() {
           onDisabled={() => setUser(prev => ({ ...prev, two_factor_enabled: false }))}
         />
       )}
+
+      {showDeleteAccount && (
+          <ConfirmModal
+          icon="⚠️"
+          title="Delete Account"
+          message="Are you sure you want to delete your account? This action cannot be undone!"
+          onConfirm={handleDeleteAccount}
+          onCancel={() => setShowDeleteAccount(false)}
+          />
+    )}
     </div>
   )
 }

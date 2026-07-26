@@ -195,9 +195,11 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
 
       {showConfirm && (
         <ConfirmModal
-          message="Are you sure you want to remove this movie from your list?"
-          onConfirm={handleDelete}
-          onCancel={() => setShowConfirm(false)}
+        icon="🎬"
+        title="Remove Movie"
+        message="Are you sure you want to remove this movie from your list?"
+        onConfirm={handleDelete}
+        onCancel={() => setShowConfirm(false)}
         />
       )}
     </>

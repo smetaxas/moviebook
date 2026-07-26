@@ -1,4 +1,4 @@
-function ConfirmModal({ message, onConfirm, onCancel }) {
+function ConfirmModal({ message, onConfirm, onCancel, icon, title, confirmText }) {
   return (
     <div style={{
       position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -13,8 +13,8 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)',
         textAlign: 'center'
       }}>
-        <p style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🗑️</p>
-        <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>Remove Movie</h3>
+        <p style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{icon || '🗑️'}</p>
+        <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>{title || 'Are you sure?'}</h3>
         <p style={{ color: '#aaa', marginBottom: '1.5rem' }}>{message}</p>
         <div style={{ display: 'flex', gap: '1rem' }}>
           <button
@@ -35,7 +35,7 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
               borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
             }}
           >
-            Remove
+            {confirmText || 'Confirm'}
           </button>
         </div>
       </div>

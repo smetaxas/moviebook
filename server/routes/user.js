@@ -59,4 +59,14 @@ router.post('/profile/photo', requireAuth, upload.single('photo'), async (req, r
   }
 });
 
+// Delete account
+router.delete('/profile', requireAuth, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.userId);
+    res.json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 module.exports = router;
