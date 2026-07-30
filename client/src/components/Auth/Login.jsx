@@ -188,6 +188,11 @@ function Login() {
                     {showPassword ? '🙈' : '👁️'}
                   </span>
                 </div>
+                <p style={{ textAlign: 'right', margin: '0.5rem 0 0 0' }}>
+                  <span onClick={() => navigate('/forgot-password')} style={{ color: '#aaa', cursor: 'pointer', fontSize: '0.85rem' }}>
+                    Forgot your password?
+                  </span>
+                </p>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
