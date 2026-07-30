@@ -11,16 +11,18 @@ router.get('/search', requireAuth, async (req, res) => {
       return res.status(400).json({ message: 'Search query is required' });
     }
     const response = await fetch(
-      `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=en-US`
+      `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=en-US&sort_by=release_date.desc`
     );
     const data = await response.json();
-    const movies = data.results.map(movie => ({
-      tmdb_id: movie.id,
-      title: movie.title,
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
-      description: movie.overview,
-      poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
-    }));
+    const movies = data.results
+      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+      .map(movie => ({
+        tmdb_id: movie.id,
+        title: movie.title,
+        year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        description: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+      }));
     res.json(movies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -34,13 +36,96 @@ router.get('/trending', requireAuth, async (req, res) => {
       `https://api.themoviedb.org/3/trending/movie/week?api_key=${process.env.TMDB_API_KEY}&language=en-US`
     );
     const data = await response.json();
-    const movies = data.results.map(movie => ({
-      tmdb_id: movie.id,
-      title: movie.title,
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
-      description: movie.overview,
-      poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
-    }));
+    const today = new Date().toISOString().split('T')[0];
+    const movies = data.results
+      .filter(movie => movie.release_date && movie.release_date <= today)
+      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+      .map(movie => ({
+        tmdb_id: movie.id,
+        title: movie.title,
+        year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        description: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+      }));
+    res.json(movies);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get upcoming movies from TMDB
+router.get('/upcoming', requireAuth, async (req, res) => {
+  try {
+    const response = await fetch(
+      `https://api.themoviedb.org/3/movie/upcoming?api_key=${process.env.TMDB_API_KEY}&language=en-US&region=US`
+    );
+    const data = await response.json();
+    const today = new Date().toISOString().split('T')[0];
+    const movies = data.results
+      .filter(movie => movie.release_date && movie.release_date > today)
+      .sort((a, b) => new Date(a.release_date) - new Date(b.release_date))
+      .map(movie => ({
+        tmdb_id: movie.id,
+        title: movie.title,
+        year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        release_date: movie.release_date,
+        description: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+      }));
+    res.json(movies);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get all genres from TMDB
+router.get('/genres', requireAuth, async (req, res) => {
+  try {
+    const response = await fetch(
+      `https://api.themoviedb.org/3/genre/movie/list?api_key=${process.env.TMDB_API_KEY}&language=en-US`
+    );
+    const data = await response.json();
+    res.json(data.genres);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get movies by genre
+router.get('/genre/:genreId', requireAuth, async (req, res) => {
+  try {
+    const { yearFrom, yearTo } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+
+    let baseUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${process.env.TMDB_API_KEY}&with_genres=${req.params.genreId}&language=en-US&sort_by=popularity.desc`;
+
+    if (yearFrom) baseUrl += `&primary_release_date.gte=${yearFrom}-01-01`;
+    if (yearTo) baseUrl += `&primary_release_date.lte=${yearTo}-12-31`;
+    else baseUrl += `&primary_release_date.lte=${today}`;
+
+    // Πάρε την πρώτη σελίδα για να δεις πόσες σελίδες υπάρχουν
+    const firstRes = await fetch(`${baseUrl}&page=1`).then(r => r.json());
+    const totalPages = Math.min(firstRes.total_pages, 10); // max 10 σελίδες = 200 ταινίες
+
+    // Fetch όλες τις σελίδες παράλληλα
+    const pagePromises = Array.from({ length: totalPages }, (_, i) =>
+      fetch(`${baseUrl}&page=${i + 1}`).then(r => r.json())
+    );
+
+    const pages = await Promise.all(pagePromises);
+    const allResults = pages.flatMap(page => page.results || []);
+
+    const movies = allResults
+      .filter(movie => movie.release_date && movie.release_date <= today)
+      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+      .map(movie => ({
+        tmdb_id: movie.id,
+        title: movie.title,
+        year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        description: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+      }));
+
     res.json(movies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -62,6 +147,7 @@ router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
       tmdb_id: data.id,
       title: data.title,
       year: data.release_date ? new Date(data.release_date).getFullYear() : null,
+      release_date: data.release_date,
       description: data.overview,
       director,
       genres: data.genres?.map(g => g.name) || [],
@@ -75,31 +161,24 @@ router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
   }
 });
 
-// Get all movies
-router.get('/', requireAuth, async (req, res) => {
+// Get watch providers from TMDB
+router.get('/tmdb/:tmdbId/providers', requireAuth, async (req, res) => {
   try {
-    const movies = await Movie.find().select('-__v');
-    res.json(movies);
+    const response = await fetch(
+      `https://api.themoviedb.org/3/movie/${req.params.tmdbId}/watch/providers?api_key=${process.env.TMDB_API_KEY}`
+    );
+    const data = await response.json();
+    const providers = data.results?.GR || data.results?.US || null;
+    res.json({ providers });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Get upcoming movies from TMDB
-router.get('/upcoming', requireAuth, async (req, res) => {
+// Get all movies
+router.get('/', requireAuth, async (req, res) => {
   try {
-    const response = await fetch(
-      `https://api.themoviedb.org/3/movie/upcoming?api_key=${process.env.TMDB_API_KEY}&language=en-US&region=US`
-    );
-    const data = await response.json();
-    const movies = data.results.map(movie => ({
-      tmdb_id: movie.id,
-      title: movie.title,
-      year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
-      release_date: movie.release_date,
-      description: movie.overview,
-      poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
-    }));
+    const movies = await Movie.find().select('-__v');
     res.json(movies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

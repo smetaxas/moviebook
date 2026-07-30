@@ -91,7 +91,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
       }}>
         <div style={{
           backgroundColor: '#1a1a1a', padding: '2rem',
-          borderRadius: '8px', width: '90%', maxWidth: '700px',
+          borderRadius: '8px', width: '90%', maxWidth: '900px',
           maxHeight: '85vh', overflowY: 'auto'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
@@ -106,7 +106,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
             <>
               <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.5rem' }}>
                 {watchedMovie.movie_poster && (
-                  <img src={watchedMovie.movie_poster} alt={watchedMovie.movie_title} style={{ width: '150px', borderRadius: '4px', flexShrink: 0 }} />
+                  <img src={watchedMovie.movie_poster} alt={watchedMovie.movie_title} style={{ width: '250px', borderRadius: '8px', flexShrink: 0, objectFit: 'contain' }} />
                 )}
                 <div style={{ flex: 1 }}>
                   <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>{watchedMovie.movie_title} ({watchedMovie.movie_year})</h3>
@@ -115,9 +115,24 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
                       <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎬 {tmdbMovie.director}</p>
                       <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎭 {tmdbMovie.genres.join(', ')}</p>
                       <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>⏱ {tmdbMovie.runtime} min</p>
+                      {tmdbMovie.release_date && (
+                        <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>📅 {formatDate(tmdbMovie.release_date)}</p>
+                      )}
                       <p style={{ color: 'white', margin: '0 0 0.75rem 0', fontSize: '0.9rem' }}>{tmdbMovie.description}</p>
                     </>
                   )}
+
+                  {/* Where to Watch */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <a
+                      href={`https://www.google.com/search?q=where+to+watch+${encodeURIComponent(watchedMovie.movie_title)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', color: 'white', textDecoration: 'none', fontSize: '0.9rem' }}
+                    >
+                      📺 Where to Watch
+                    </a>
+                  </div>
 
                   {isOwner ? (
                     <>
@@ -174,16 +189,23 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {comments.map(comment => (
                   <div key={comment._id} style={{ padding: '0.75rem', backgroundColor: '#2a2a2a', borderRadius: '4px' }}>
-                    <p style={{ color: 'white', margin: '0 0 0.25rem 0' }}>{comment.comment}</p>
-                    <p style={{ color: '#aaa', fontSize: '0.75rem', margin: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                      {comment.commenter_id?.profile_photo ? (
+                        <img src={comment.commenter_id.profile_photo} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', backgroundColor: '#e50914', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 'bold' }}>
+                          {(comment.commenter_id?.username || comment.commenter_id?.email || '?')[0].toUpperCase()}
+                        </div>
+                      )}
                       <span
+                        style={{ color: '#aaa', fontSize: '0.75rem', cursor: 'pointer', textDecoration: 'underline' }}
                         onClick={() => onUserClick && onUserClick(comment.commenter_id?._id)}
-                        style={{ cursor: 'pointer', textDecoration: 'underline' }}
                       >
-                        {comment.commenter_id?.email}
+                        {comment.commenter_id?.username || comment.commenter_id?.email}
                       </span>
-                      {' · '}{formatDate(comment.createdAt)}
-                    </p>
+                      <span style={{ color: '#555', fontSize: '0.75rem' }}>· {formatDate(comment.createdAt)}</span>
+                    </div>
+                    <p style={{ color: 'white', margin: 0 }}>{comment.comment}</p>
                   </div>
                 ))}
                 {comments.length === 0 && <p style={{ color: '#aaa' }}>No comments yet!</p>}
@@ -195,11 +217,12 @@ function MovieDetailModal({ watchedMovieId, onClose, onUserClick, onDeleted, onR
 
       {showConfirm && (
         <ConfirmModal
-        icon="🎬"
-        title="Remove Movie"
-        message="Are you sure you want to remove this movie from your list?"
-        onConfirm={handleDelete}
-        onCancel={() => setShowConfirm(false)}
+          icon="🎬"
+          title="Remove Movie"
+          message="Are you sure you want to remove this movie from your list?"
+          confirmText="Remove"
+          onConfirm={handleDelete}
+          onCancel={() => setShowConfirm(false)}
         />
       )}
     </>

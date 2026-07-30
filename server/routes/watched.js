@@ -6,9 +6,8 @@ const WatchedMovie = require('../models/WatchedMovie');
 // Log a movie
 router.post('/', requireAuth, async (req, res) => {
   try {
-    const { movie_id, movie_title, movie_poster, movie_year, rating, review } = req.body;
+    const { movie_id, movie_title, movie_poster, movie_year, rating } = req.body;
 
-    // Check if user already logged this movie
     const existing = await WatchedMovie.findOne({
       user_id: req.userId,
       movie_id
@@ -24,8 +23,7 @@ router.post('/', requireAuth, async (req, res) => {
       movie_title,
       movie_poster,
       movie_year,
-      rating,
-      review
+      rating
     });
 
     res.status(201).json(watchedMovie);
@@ -38,9 +36,8 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/user/:userId', requireAuth, async (req, res) => {
   try {
     const watchedMovies = await WatchedMovie.find({ user_id: req.params.userId })
-      .sort({ watchedAt: -1 })
+      .sort({ movie_year: -1 })
       .select('-__v');
-
     res.json(watchedMovies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -51,29 +48,36 @@ router.get('/user/:userId', requireAuth, async (req, res) => {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const watchedMovies = await WatchedMovie.find()
-      .populate('user_id', 'email')
-      .sort({ watchedAt: -1 })
+      .populate('user_id', 'email username profile_photo')
+      .sort({ movie_year: -1 })
       .select('-__v');
-
     res.json(watchedMovies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });
 
-// Get watched movie by movie ID
-router.get('/movie/:movieId', requireAuth, async (req, res) => {
+// Get all watched movies by movie_id (all users) with comments
+router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
   try {
-    const watchedMovie = await WatchedMovie.findOne({
-      user_id: req.userId,
-      movie_id: req.params.movieId
-    }).select('-__v');
+    const ReviewComment = require('../models/ReviewComment');
 
-    if (!watchedMovie) {
-      return res.status(404).json({ message: 'Watched movie not found' });
-    }
+    const watchedMovies = await WatchedMovie.find({ movie_id: req.params.movieId })
+      .populate('user_id', 'email username profile_photo')
+      .sort({ movie_year: -1 })
+      .select('-__v');
 
-    res.json(watchedMovie);
+    const watchedWithComments = await Promise.all(
+      watchedMovies.map(async (watched) => {
+        const comments = await ReviewComment.find({ watched_movie_id: watched._id })
+          .populate('commenter_id', 'email username profile_photo')
+          .sort({ createdAt: -1 })
+          .select('-__v');
+        return { ...watched.toObject(), comments }
+      })
+    );
+
+    res.json(watchedWithComments);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -92,27 +96,19 @@ router.get('/id/:id', requireAuth, async (req, res) => {
   }
 });
 
-// Get all watched movies by movie_id (all users) with comments
-router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
+// Get watched movie by movie ID (tmdb id)
+router.get('/movie/:movieId', requireAuth, async (req, res) => {
   try {
-    const ReviewComment = require('../models/ReviewComment');
-    
-    const watchedMovies = await WatchedMovie.find({ movie_id: req.params.movieId })
-      .populate('user_id', 'email')
-      .sort({ watchedAt: -1 })
-      .select('-__v');
+    const watchedMovie = await WatchedMovie.findOne({
+      user_id: req.userId,
+      movie_id: req.params.movieId
+    }).select('-__v');
 
-    const watchedWithComments = await Promise.all(
-      watchedMovies.map(async (watched) => {
-        const comments = await ReviewComment.find({ watched_movie_id: watched._id })
-          .populate('commenter_id', 'email')
-          .sort({ createdAt: -1 })
-          .select('-__v');
-        return { ...watched.toObject(), comments }
-      })
-    );
+    if (!watchedMovie) {
+      return res.status(404).json({ message: 'Watched movie not found' });
+    }
 
-    res.json(watchedWithComments);
+    res.json(watchedMovie);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }

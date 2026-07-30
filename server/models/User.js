@@ -30,6 +30,28 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  watchlist: [{
+    movie_id: {
+      type: String,
+      required: true
+    },
+    movie_title: {
+      type: String,
+      required: true
+    },
+    movie_poster: {
+      type: String,
+      default: ''
+    },
+    movie_year: {
+      type: Number,
+      default: null
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
 }, { timestamps: true, versionKey: false });
 
 module.exports = mongoose.model('User', userSchema);

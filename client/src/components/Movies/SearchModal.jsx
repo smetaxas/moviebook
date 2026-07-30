@@ -3,7 +3,7 @@ import api from '../../api/axios'
 import LogMovieModal from './LogMovieModal'
 import TMDBMovieModal from './TMDBMovieModal'
 
-function SearchModal({ onClose, onMovieLogged }) {
+function SearchModal({ onClose, onMovieLogged, onWatchlistChange }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -102,6 +102,7 @@ function SearchModal({ onClose, onMovieLogged }) {
             setSelectedMovie(null)
             setMovieToLog(movie)
           }}
+          onWatchlistChange={onWatchlistChange}
         />
       )}
 

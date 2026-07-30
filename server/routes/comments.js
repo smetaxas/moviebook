@@ -7,7 +7,7 @@ const ReviewComment = require('../models/ReviewComment');
 router.get('/:watchedMovieId', requireAuth, async (req, res) => {
   try {
     const comments = await ReviewComment.find({ watched_movie_id: req.params.watchedMovieId })
-      .populate('commenter_id', 'email')
+      .populate('commenter_id', 'email username profile_photo')
       .sort({ createdAt: -1 })
       .select('-__v');
 
@@ -28,7 +28,7 @@ router.post('/:watchedMovieId', requireAuth, async (req, res) => {
       comment
     });
 
-    const populated = await newComment.populate('commenter_id', 'email');
+    const populated = await newComment.populate('commenter_id', 'email username profile_photo');
 
     res.status(201).json(populated);
   } catch (err) {

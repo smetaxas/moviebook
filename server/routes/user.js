@@ -59,11 +59,95 @@ router.post('/profile/photo', requireAuth, upload.single('photo'), async (req, r
   }
 });
 
+// Get own watchlist
+router.get('/profile/watchlist', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId).select('watchlist');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user.watchlist || []);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Add movie to watchlist
+router.post('/profile/watchlist', requireAuth, async (req, res) => {
+  try {
+    const { movie_id, movie_title, movie_poster, movie_year } = req.body;
+
+    if (!movie_id || !movie_title) {
+      return res.status(400).json({ message: 'movie_id and movie_title are required' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const alreadySaved = (user.watchlist || []).some(item => item.movie_id === movie_id);
+    if (alreadySaved) {
+      return res.status(400).json({ message: 'Movie is already in your watchlist' });
+    }
+
+    user.watchlist.unshift({ movie_id, movie_title, movie_poster, movie_year });
+    await user.save();
+
+    res.status(201).json(user.watchlist);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Remove movie from watchlist
+router.delete('/profile/watchlist/:movieId', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    user.watchlist = (user.watchlist || []).filter(item => item.movie_id !== req.params.movieId);
+    await user.save();
+
+    res.json(user.watchlist);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Delete account
 router.delete('/profile', requireAuth, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.userId);
     res.json({ message: 'Account deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get public profile by user ID
+router.get('/profile/:userId', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId).select('-password -__v -two_factor_secret -otp_code -otp_expires');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get watched movies by user ID (public)
+router.get('/profile/:userId/watched', requireAuth, async (req, res) => {
+  try {
+    const WatchedMovie = require('../models/WatchedMovie');
+    const watchedMovies = await WatchedMovie.find({ user_id: req.params.userId })
+      .sort({ watchedAt: -1 })
+      .select('-__v');
+    res.json(watchedMovies);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
