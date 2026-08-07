@@ -2,13 +2,40 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
+const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const { sendPasswordResetEmail } = require('../config/email');
+
+// Validation middleware
+const registerValidation = [
+  body('username')
+    .trim()
+    .isLength({ min: 3, max: 20 }).withMessage('Username must be between 3 and 20 characters')
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage('Username can only contain letters, numbers and underscores'),
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email address')
+    .normalizeEmail(),
+  body('password')
+    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+]
+
+const loginValidation = [
+  body('email')
+    .trim()
+    .isEmail().withMessage('Invalid email address')
+    .normalizeEmail(),
+  body('password')
+    .notEmpty().withMessage('Password is required')
+]
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', registerValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
     const { email, password, username, captchaToken } = req.body;
 
     if (captchaToken !== 'localhost-bypass') {
@@ -46,8 +73,13 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', loginValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
@@ -72,61 +104,32 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Forgot password - request a reset link
-router.post('/forgot-password', async (req, res) => {
+// Verify OTP
+router.post('/verify-otp', async (req, res) => {
   try {
-    const { email } = req.body;
-    const user = await User.findOne({ email });
+    const { userId, otp } = req.body;
 
-    // Respond the same way whether or not the email exists, to avoid leaking registered emails
-    if (user) {
-      const rawToken = crypto.randomBytes(32).toString('hex');
-      const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-
-      user.reset_password_token = hashedToken;
-      user.reset_password_expires = Date.now() + 60 * 60 * 1000; // 1 hour
-      await user.save();
-
-      const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/reset-password?token=${rawToken}`;
-      try {
-        await sendPasswordResetEmail(user.email, resetUrl);
-      } catch (emailErr) {
-        // Log for debugging, but don't let email delivery failures change the response -
-        // doing so would let an attacker tell registered emails apart from unregistered ones.
-        console.error('Failed to send password reset email:', emailErr.message);
-      }
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json({ message: 'If an account exists for that email, a password reset link has been sent.' });
-  } catch (err) {
-    res.status(500).json({ message: 'Server error', error: err.message });
-  }
-});
-
-// Reset password using a valid token
-router.post('/reset-password', async (req, res) => {
-  try {
-    const { token, password } = req.body;
-    if (!token || !password) {
-      return res.status(400).json({ message: 'Token and new password are required' });
+    if (user.otp_code !== otp) {
+      return res.status(400).json({ message: 'Invalid code' });
     }
 
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await User.findOne({
-      reset_password_token: hashedToken,
-      reset_password_expires: { $gt: Date.now() }
+    if (new Date() > user.otp_expires) {
+      return res.status(400).json({ message: 'Code has expired' });
+    }
+
+    await User.findByIdAndUpdate(userId, {
+      otp_code: null,
+      otp_expires: null
     });
 
-    if (!user) {
-      return res.status(400).json({ message: 'Invalid or expired reset link' });
-    }
+    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
-    user.password = await bcrypt.hash(password, 10);
-    user.reset_password_token = null;
-    user.reset_password_expires = null;
-    await user.save();
-
-    res.json({ message: 'Password updated successfully' });
+    res.json({ message: 'Login successful', token, email: user.email, userId: user._id, username: user.username });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
