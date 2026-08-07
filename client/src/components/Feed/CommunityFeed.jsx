@@ -29,20 +29,35 @@ function CommunityFeed() {
     return () => clearTimeout(timer)
   }, [query])
 
+  const fetchWatchedForMovie = async (tmdbId) => {
+    const res = await api.get(`/watched/all/movie/${tmdbId}`)
+    setWatchedMovies(res.data)
+  }
+
   const handleSelectMovie = async (movie) => {
     setSelectedMovie(movie)
     setQuery('')
     setSearchResults([])
     setLoading(true)
     try {
-      const res = await api.get(`/watched/all/movie/${movie.tmdb_id}`)
-      setWatchedMovies(res.data)
+      await fetchWatchedForMovie(movie.tmdb_id)
     } catch (err) {
       console.error('Failed to load watched movies')
     } finally {
       setLoading(false)
     }
   }
+
+  // Poll for new ratings/logs (from any user, including yourself) while a movie is open
+  useEffect(() => {
+    if (!selectedMovie) return
+    const interval = setInterval(() => {
+      fetchWatchedForMovie(selectedMovie.tmdb_id).catch(() => {
+        console.error('Failed to refresh watched movies')
+      })
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [selectedMovie])
 
   const handleAddComment = async (watchedMovieId) => {
     const comment = newComments[watchedMovieId]
@@ -149,6 +164,14 @@ function CommunityFeed() {
               <h3 style={{ margin: '0 0 0.25rem 0' }}>{selectedMovie.title} ({selectedMovie.year})</h3>
               <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>{watchedMovies.length} logs from the community</p>
             </div>
+            {watchedMovies.length > 0 && (
+              <div style={{ textAlign: 'center', padding: '0.5rem 1rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid rgba(229,9,20,0.3)', borderRadius: '8px' }}>
+                <p style={{ fontSize: '1.3rem', fontWeight: 'bold', margin: 0, color: '#e50914' }}>
+                  ⭐ {(watchedMovies.reduce((sum, w) => sum + w.rating, 0) / watchedMovies.length).toFixed(1)}
+                </p>
+                <p style={{ color: '#aaa', fontSize: '0.7rem', margin: 0, whiteSpace: 'nowrap' }}>avg rating</p>
+              </div>
+            )}
             <button onClick={() => { setSelectedMovie(null); setWatchedMovies([]) }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1.5rem' }}>✕</button>
           </div>
         )}
