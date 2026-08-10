@@ -7,6 +7,7 @@ import Profile from './components/Profile/Profile'
 import WatchedMoviesPage from './components/Profile/WatchedMoviesPage'
 import CommunityFeed from './components/Feed/CommunityFeed'
 import UserProfile from './components/Profile/UserProfile'
+import VerifyEmail from './components/Auth/VerifyEmail'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/profile/watched" element={<WatchedMoviesPage />} />
         <Route path="/feed" element={<CommunityFeed />} />
         <Route path="/user/:userId" element={<UserProfile />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
       </Routes>
     </BrowserRouter>
   )

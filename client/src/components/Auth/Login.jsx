@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
 
 const POSTER_URLS = [
@@ -39,6 +39,8 @@ function Login() {
   const [tempUserId, setTempUserId] = useState(null)
   const [twoFAError, setTwoFAError] = useState('')
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const verified = searchParams.get('verified')
 
   useEffect(() => {
     const savedEmail = localStorage.getItem('rememberedEmail')
@@ -148,10 +150,14 @@ function Login() {
       }}>
         {!show2FA ? (
           <>
-            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>
-              Cine<span style={{ color: '#e50914' }}>Log</span>
-            </h1>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🎬 CineLog</h1>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
+
+            {verified && (
+              <p style={{ color: '#00c800', backgroundColor: 'rgba(0,200,0,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+                Email verified successfully! You can now login.
+              </p>
+            )}
 
             {error && (
               <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
@@ -190,11 +196,6 @@ function Login() {
                     {showPassword ? '🙈' : '👁️'}
                   </span>
                 </div>
-                <p style={{ textAlign: 'right', margin: '0.5rem 0 0 0' }}>
-                  <span onClick={() => navigate('/forgot-password')} style={{ color: '#aaa', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    Forgot your password?
-                  </span>
-                </p>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
@@ -263,7 +264,7 @@ function Login() {
 
             <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
               <span onClick={() => setShow2FA(false)} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
-                ← Back to Login
+                Back to Login
               </span>
             </p>
           </>
