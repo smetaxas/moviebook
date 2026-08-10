@@ -51,6 +51,21 @@ const userSchema = new mongoose.Schema({
   refresh_token: {
   type: String,
   default: null
+  },
+
+  email_verified: {
+  type: Boolean,
+  default: false
+  },
+
+  email_verification_token: {
+  type: String,
+  default: null
+  },
+  
+  email_verification_expires: {
+  type: Date,
+  default: null
   }
 }, { timestamps: true, versionKey: false });
 

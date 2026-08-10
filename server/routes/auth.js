@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auditLog = require('../middleware/audit');
+const { sendOTPEmail, sendVerificationEmail } = require('../config/email');
 
 // Validation middleware
 const registerValidation = [
@@ -70,6 +72,22 @@ router.post('/register', registerValidation, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ email, password: hashedPassword, username });
 
+    // Generate verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex')
+    const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+    await user.updateOne({
+      email_verification_token: verificationToken,
+      email_verification_expires: verificationExpires
+    })
+
+    // Send verification email
+    try {
+      await sendVerificationEmail(user.email, verificationToken)
+    } catch (emailErr) {
+      console.error('Failed to send verification email:', emailErr.message)
+    }
+
     await auditLog('REGISTER', user._id, req.ip, { email: user.email, username: user.username }, true);
 
     const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
@@ -77,7 +95,42 @@ router.post('/register', registerValidation, async (req, res) => {
 
     await user.updateOne({ refresh_token: refreshToken })
 
-    res.status(201).json({ message: 'User created successfully', token: accessToken, refreshToken, email: user.email, userId: user._id, username: user.username });
+    res.status(201).json({
+      message: 'User created successfully. Please check your email to verify your account.',
+      token: accessToken,
+      refreshToken,
+      email: user.email,
+      userId: user._id,
+      username: user.username
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Verify email
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    const user = await User.findOne({
+      email_verification_token: token,
+      email_verification_expires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired verification token' });
+    }
+
+    await user.updateOne({
+      email_verified: true,
+      email_verification_token: null,
+      email_verification_expires: null
+    });
+
+    await auditLog('EMAIL_VERIFIED', user._id, req.ip, { email: user.email }, true);
+
+    res.redirect(`${process.env.CLIENT_URL}/login?verified=true`)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -97,6 +150,11 @@ router.post('/login', loginValidation, async (req, res) => {
     if (!user) {
       await auditLog('LOGIN_FAILED', null, req.ip, { email, reason: 'User not found' }, false);
       return res.status(400).json({ message: 'Invalid credentials' });
+    }
+
+    // Check if email is verified
+    if (!user.email_verified) {
+      return res.status(403).json({ message: 'Please verify your email before logging in.' });
     }
 
     // Check if account is locked
