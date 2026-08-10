@@ -28,6 +28,7 @@ function Profile() {
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const [selectedTrendingMovie, setSelectedTrendingMovie] = useState(null)
   const [show2FASetup, setShow2FASetup] = useState(false)
+  const [show2FAPrompt, setShow2FAPrompt] = useState(false)
   const [movieToLog, setMovieToLog] = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
@@ -46,6 +47,9 @@ function Profile() {
     try {
       const res = await api.get('/user/profile')
       setUser(res.data)
+      if (!res.data.two_factor_enabled) {
+        setShow2FAPrompt(true)
+      }
     } catch (err) {
       setError('Failed to load profile')
     }
@@ -528,6 +532,50 @@ function Profile() {
           onEnabled={() => setUser(prev => ({ ...prev, two_factor_enabled: true }))}
           onDisabled={() => setUser(prev => ({ ...prev, two_factor_enabled: false }))}
         />
+      )}
+
+      {show2FAPrompt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#1a1a1a', padding: '2rem', borderRadius: '16px',
+            width: '90%', maxWidth: '400px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            textAlign: 'center'
+          }}>
+            <p style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔐</p>
+            <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>Enable Two-Factor Authentication</h3>
+            <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Add an extra layer of security to your account with 2FA. You can enable it anytime from your profile.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={() => { setShow2FAPrompt(false); setShow2FASetup(true) }}
+                style={{
+                  flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
+                  color: 'white', border: 'none', borderRadius: '8px',
+                  cursor: 'pointer', fontWeight: 'bold'
+                }}
+              >
+                Enable 2FA
+              </button>
+              <button
+                onClick={() => setShow2FAPrompt(false)}
+                style={{
+                  flex: 1, padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)',
+                  color: '#aaa', border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '8px', cursor: 'pointer'
+                }}
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showDeleteAccount && (
