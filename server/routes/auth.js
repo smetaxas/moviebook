@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
+const auditLog = require('../middleware/audit');
 
 // Validation middleware
 const registerValidation = [
@@ -51,6 +52,7 @@ router.post('/register', registerValidation, async (req, res) => {
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+      await auditLog('REGISTER_FAILED', null, req.ip, { email, reason: 'Email already in use' }, false);
       return res.status(400).json({ message: 'Email already in use' });
     }
 
@@ -61,15 +63,21 @@ router.post('/register', registerValidation, async (req, res) => {
         `${username}_${Math.floor(Math.random() * 100)}`,
         `${username}${new Date().getFullYear()}`
       ]
+      await auditLog('REGISTER_FAILED', null, req.ip, { username, reason: 'Username already in use' }, false);
       return res.status(400).json({ message: 'Username already in use', suggestions });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ email, password: hashedPassword, username });
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    await auditLog('REGISTER', user._id, req.ip, { email: user.email, username: user.username }, true);
 
-    res.status(201).json({ message: 'User created successfully', token, email: user.email, userId: user._id, username: user.username });
+    const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
+    const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
+
+    await user.updateOne({ refresh_token: refreshToken })
+
+    res.status(201).json({ message: 'User created successfully', token: accessToken, refreshToken, email: user.email, userId: user._id, username: user.username });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -87,12 +95,14 @@ router.post('/login', loginValidation, async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
+      await auditLog('LOGIN_FAILED', null, req.ip, { email, reason: 'User not found' }, false);
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
     // Check if account is locked
     if (user.isLocked()) {
       const minutesLeft = Math.ceil((user.lock_until - Date.now()) / 60000)
+      await auditLog('ACCOUNT_LOCKED', user._id, req.ip, { email, minutesLeft }, false);
       return res.status(423).json({
         message: `Account locked. Try again in ${minutesLeft} minutes.`
       })
@@ -102,6 +112,7 @@ router.post('/login', loginValidation, async (req, res) => {
     if (!isMatch) {
       await user.incrementLoginAttempts()
       const attemptsLeft = 5 - (user.login_attempts + 1)
+      await auditLog('LOGIN_FAILED', user._id, req.ip, { email, attemptsLeft }, false);
       if (attemptsLeft <= 0) {
         return res.status(423).json({ message: 'Account locked for 1 hour due to too many failed attempts.' })
       }
@@ -119,12 +130,12 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.json({ requires2FA: true, userId: user._id });
     }
 
-    // Generate tokens
     const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
     const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
 
-    // Save refresh token to DB
     await user.updateOne({ refresh_token: refreshToken })
+
+    await auditLog('LOGIN_SUCCESS', user._id, req.ip, { email: user.email }, true);
 
     res.json({
       message: 'Login successful',
@@ -151,6 +162,7 @@ router.post('/refresh', async (req, res) => {
     const user = await User.findById(decoded.userId)
 
     if (!user || user.refresh_token !== refreshToken) {
+      await auditLog('REFRESH_TOKEN_FAILED', null, req.ip, {}, false);
       return res.status(401).json({ message: 'Invalid refresh token' });
     }
 
@@ -167,10 +179,13 @@ router.post('/logout', async (req, res) => {
   try {
     const { refreshToken } = req.body;
     if (refreshToken) {
-      await User.findOneAndUpdate(
+      const user = await User.findOneAndUpdate(
         { refresh_token: refreshToken },
         { refresh_token: null }
       )
+      if (user) {
+        await auditLog('LOGOUT', user._id, req.ip, {}, true);
+      }
     }
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
@@ -189,6 +204,7 @@ router.post('/verify-otp', async (req, res) => {
     }
 
     if (user.otp_code !== otp) {
+      await auditLog('OTP_FAILED', userId, req.ip, {}, false);
       return res.status(400).json({ message: 'Invalid code' });
     }
 
@@ -205,6 +221,8 @@ router.post('/verify-otp', async (req, res) => {
     const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
 
     await user.updateOne({ refresh_token: refreshToken })
+
+    await auditLog('LOGIN_SUCCESS_OTP', user._id, req.ip, { email: user.email }, true);
 
     res.json({
       message: 'Login successful',
