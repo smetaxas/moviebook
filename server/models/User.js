@@ -47,6 +47,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+
+  refresh_token: {
+  type: String,
+  default: null
+  }
 }, { timestamps: true, versionKey: false });
 
 // Method to check if account is locked

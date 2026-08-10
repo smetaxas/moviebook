@@ -93,8 +93,8 @@ router.post('/login', loginValidation, async (req, res) => {
     // Check if account is locked
     if (user.isLocked()) {
       const minutesLeft = Math.ceil((user.lock_until - Date.now()) / 60000)
-      return res.status(423).json({ 
-        message: `Account locked. Try again in ${minutesLeft} minutes.` 
+      return res.status(423).json({
+        message: `Account locked. Try again in ${minutesLeft} minutes.`
       })
     }
 
@@ -105,8 +105,8 @@ router.post('/login', loginValidation, async (req, res) => {
       if (attemptsLeft <= 0) {
         return res.status(423).json({ message: 'Account locked for 1 hour due to too many failed attempts.' })
       }
-      return res.status(400).json({ 
-        message: `Invalid credentials. ${attemptsLeft} attempts remaining.` 
+      return res.status(400).json({
+        message: `Invalid credentials. ${attemptsLeft} attempts remaining.`
       })
     }
 
@@ -119,9 +119,60 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.json({ requires2FA: true, userId: user._id });
     }
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    // Generate tokens
+    const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
+    const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
 
-    res.json({ message: 'Login successful', token, email: user.email, userId: user._id, username: user.username });
+    // Save refresh token to DB
+    await user.updateOne({ refresh_token: refreshToken })
+
+    res.json({
+      message: 'Login successful',
+      token: accessToken,
+      refreshToken,
+      email: user.email,
+      userId: user._id,
+      username: user.username
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Refresh token
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(401).json({ message: 'Refresh token required' });
+    }
+
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET)
+    const user = await User.findById(decoded.userId)
+
+    if (!user || user.refresh_token !== refreshToken) {
+      return res.status(401).json({ message: 'Invalid refresh token' });
+    }
+
+    const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
+
+    res.json({ token: accessToken })
+  } catch (err) {
+    res.status(401).json({ message: 'Invalid or expired refresh token' });
+  }
+});
+
+// Logout
+router.post('/logout', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (refreshToken) {
+      await User.findOneAndUpdate(
+        { refresh_token: refreshToken },
+        { refresh_token: null }
+      )
+    }
+    res.json({ message: 'Logged out successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -150,9 +201,19 @@ router.post('/verify-otp', async (req, res) => {
       otp_expires: null
     });
 
-    const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
+    const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
 
-    res.json({ message: 'Login successful', token, email: user.email, userId: user._id, username: user.username });
+    await user.updateOne({ refresh_token: refreshToken })
+
+    res.json({
+      message: 'Login successful',
+      token: accessToken,
+      refreshToken,
+      email: user.email,
+      userId: user._id,
+      username: user.username
+    });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
