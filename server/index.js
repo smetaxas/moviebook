@@ -13,12 +13,14 @@ const commentRoutes = require('./routes/comments');
 const watchlistRoutes = require('./routes/watchlist');
 const twoFactorRoutes = require('./routes/twoFactor');
 const requireAuth = require('./middleware/auth');
+const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
 const port = process.env.PORT || 3000;
 
 // Security headers
 app.use(helmet())
+app.use(mongoSanitize());
 
 // CORS
 app.use(cors({

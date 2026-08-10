@@ -16,7 +16,10 @@ const registerValidation = [
     .isEmail().withMessage('Invalid email address')
     .normalizeEmail(),
   body('password')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+    .isLength({ min: 8 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
 ]
 
 const loginValidation = [
@@ -87,9 +90,29 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
+    // Check if account is locked
+    if (user.isLocked()) {
+      const minutesLeft = Math.ceil((user.lock_until - Date.now()) / 60000)
+      return res.status(423).json({ 
+        message: `Account locked. Try again in ${minutesLeft} minutes.` 
+      })
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      await user.incrementLoginAttempts()
+      const attemptsLeft = 5 - (user.login_attempts + 1)
+      if (attemptsLeft <= 0) {
+        return res.status(423).json({ message: 'Account locked for 1 hour due to too many failed attempts.' })
+      }
+      return res.status(400).json({ 
+        message: `Invalid credentials. ${attemptsLeft} attempts remaining.` 
+      })
+    }
+
+    // Reset login attempts on success
+    if (user.login_attempts > 0) {
+      await user.updateOne({ $set: { login_attempts: 0 }, $unset: { lock_until: 1 } })
     }
 
     if (user.two_factor_enabled) {
