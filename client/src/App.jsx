@@ -8,12 +8,13 @@ import WatchedMoviesPage from './components/Profile/WatchedMoviesPage'
 import CommunityFeed from './components/Feed/CommunityFeed'
 import UserProfile from './components/Profile/UserProfile'
 import VerifyEmail from './components/Auth/VerifyEmail'
+import Landing from './components/Landing'
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

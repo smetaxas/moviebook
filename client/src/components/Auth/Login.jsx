@@ -231,7 +231,6 @@ function Login() {
           <>
             <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🔐 2FA</h1>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Open your authenticator app and enter the 6-digit code</p>
-
             {twoFAError && (
               <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
                 {twoFAError}
