@@ -46,14 +46,11 @@ function Register() {
   const checkPasswordStrength = (pass) => {
     if (pass.length === 0) return ''
     if (pass.length < 6) return 'weak'
-
     const hasUpper = /[A-Z]/.test(pass)
     const hasLower = /[a-z]/.test(pass)
     const hasNumber = /[0-9]/.test(pass)
     const hasSpecial = /[!@#$%^&*]/.test(pass)
-
     const score = [hasUpper, hasLower, hasNumber, hasSpecial].filter(Boolean).length
-
     if (pass.length >= 10 && score >= 3) return 'strong'
     if (pass.length >= 8 && score >= 2) return 'medium'
     return 'weak'
@@ -61,18 +58,15 @@ function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
-
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
     }
-
     const isLocalhost = window.location.hostname === 'localhost'
     if (!captchaToken && !isLocalhost) {
       setError('Please complete the CAPTCHA')
       return
     }
-
     try {
       const res = await api.post('/auth/register', {
         email, password, username,
@@ -150,12 +144,10 @@ function Register() {
         backgroundColor: 'rgba(255,255,255,0.05)',
         backdropFilter: 'blur(10px)',
         border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px',
+        borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '600px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
       }}>
-        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>
-          Cine<span style={{ color: '#e50914' }}>Log</span>
-        </h1>
+        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>Cine<span style={{ color: '#e50914' }}>Log</span></h1>
         <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Create your account</p>
 
         {error && (
@@ -165,111 +157,111 @@ function Register() {
         )}
 
         <form onSubmit={handleRegister} autoComplete="on">
-          {/* Username */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
-            <input
-              type="text"
-              name="username"
-              value={username}
-              onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
-              required
-              autoComplete="username"
-              style={inputStyle}
-            />
-            {usernameSuggestions.length > 0 && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <p style={{ color: '#aaa', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Try one of these:</p>
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  {usernameSuggestions.map((suggestion, i) => (
-                    <span
-                      key={i}
-                      onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
-                      style={{ padding: '0.25rem 0.5rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid #e50914', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', color: '#e50914' }}
-                    >
-                      {suggestion}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Email */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
-            <input
-              type="email"
-              name="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              style={inputStyle}
-            />
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
-            <div style={{ position: 'relative' }}>
+          {/* Username & Email side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div>
+              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
               <input
-                type={showPassword ? 'text' : 'password'}
-                name="password"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  setPasswordStrength(checkPasswordStrength(e.target.value))
-                }}
+                type="text"
+                name="username"
+                value={username}
+                onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
                 required
-                autoComplete="new-password"
-                style={{ ...inputStyle, paddingRight: '3rem' }}
+                autoComplete="username"
+                style={inputStyle}
               />
-              <span
-                onClick={() => setShowPassword(!showPassword)}
-                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-              >
-                {showPassword ? '🙈' : '👁️'}
-              </span>
+              {usernameSuggestions.length > 0 && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <p style={{ color: '#aaa', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Try one of these:</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {usernameSuggestions.map((suggestion, i) => (
+                      <span
+                        key={i}
+                        onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
+                        style={{ padding: '0.25rem 0.5rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid #e50914', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', color: '#e50914' }}
+                      >
+                        {suggestion}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            {passwordStrength && (
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
-                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e50914' }} />
-                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
-                  <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
-                </div>
-                <p style={{ color: strengthColor, fontSize: '0.8rem', margin: 0 }}>
-                  {passwordStrength === 'weak' ? '⚠️ Weak password' : passwordStrength === 'medium' ? '👍 Medium password' : '✅ Strong password'}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Confirm Password */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Confirm Password</label>
-            <div style={{ position: 'relative' }}>
+            <div>
+              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
               <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                name="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                type="email"
+                name="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
-                autoComplete="new-password"
-                style={{ ...inputStyle, paddingRight: '3rem' }}
+                autoComplete="email"
+                style={inputStyle}
               />
-              <span
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-              >
-                {showConfirmPassword ? '🙈' : '👁️'}
-              </span>
             </div>
           </div>
 
-          {/* reCAPTCHA */}
-          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
+          {/* Password & Confirm Password side by side */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+            <div>
+              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  name="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value)
+                    setPasswordStrength(checkPasswordStrength(e.target.value))
+                  }}
+                  required
+                  autoComplete="new-password"
+                  style={{ ...inputStyle, paddingRight: '3rem' }}
+                />
+                <span
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </span>
+              </div>
+              {passwordStrength && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
+                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e50914' }} />
+                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
+                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
+                  </div>
+                  <p style={{ color: strengthColor, fontSize: '0.8rem', margin: 0 }}>
+                    {passwordStrength === 'weak' ? 'Weak' : passwordStrength === 'medium' ? 'Medium' : 'Strong'}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div>
+              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Confirm Password</label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  name="confirm-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  autoComplete="new-password"
+                  style={{ ...inputStyle, paddingRight: '3rem' }}
+                />
+                <span
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
+                >
+                  {showConfirmPassword ? '🙈' : '👁️'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* reCAPTCHA & Button */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginTop: '1rem' }}>
             <ReCAPTCHA
               ref={recaptchaRef}
               sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
@@ -277,15 +269,15 @@ function Register() {
               onExpired={() => setCaptchaToken(null)}
               theme="dark"
             />
+            <button type="submit" style={{
+              flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
+              color: 'white', border: 'none', borderRadius: '8px',
+              cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold',
+              height: '50px'
+            }}>
+              Create Account
+            </button>
           </div>
-
-          <button type="submit" style={{
-            width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
-            color: 'white', border: 'none', borderRadius: '8px',
-            cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
-          }}>
-            Create Account
-          </button>
         </form>
 
         <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>

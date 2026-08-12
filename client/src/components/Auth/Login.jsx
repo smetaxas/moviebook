@@ -38,6 +38,7 @@ function Login() {
   const [twoFACode, setTwoFACode] = useState('')
   const [tempUserId, setTempUserId] = useState(null)
   const [twoFAError, setTwoFAError] = useState('')
+  const [show2FAPrompt, setShow2FAPrompt] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const verified = searchParams.get('verified')
@@ -64,7 +65,11 @@ function Login() {
         } else {
           localStorage.removeItem('rememberedEmail')
         }
-        navigate('/profile')
+        if (!res.data.two_factor_enabled) {
+          setShow2FAPrompt(true)
+        } else {
+          navigate('/profile')
+        }
       }
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong')
@@ -198,17 +203,25 @@ function Login() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
-                <input
-                  type="checkbox"
-                  id="rememberMe"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                />
-                <label htmlFor="rememberMe" style={{ color: '#aaa', fontSize: '0.9rem', cursor: 'pointer' }}>
-                  Remember me
-                </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                  />
+                  <label htmlFor="rememberMe" style={{ color: '#aaa', fontSize: '0.9rem', cursor: 'pointer' }}>
+                    Remember me
+                  </label>
+                </div>
+                <span
+                  onClick={() => navigate('/forgot-password')}
+                  style={{ color: '#e50914', cursor: 'pointer', fontSize: '0.85rem' }}
+                >
+                  Forgot Password?
+                </span>
               </div>
 
               <button type="submit" style={{
@@ -231,6 +244,7 @@ function Login() {
           <>
             <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🔐 2FA</h1>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Open your authenticator app and enter the 6-digit code</p>
+
             {twoFAError && (
               <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
                 {twoFAError}
@@ -269,6 +283,51 @@ function Login() {
           </>
         )}
       </div>
+
+      {/* 2FA Prompt */}
+      {show2FAPrompt && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          display: 'flex', justifyContent: 'center', alignItems: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#1a1a1a', padding: '2rem', borderRadius: '16px',
+            width: '90%', maxWidth: '400px',
+            border: '1px solid rgba(255,255,255,0.1)',
+            textAlign: 'center'
+          }}>
+            <p style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔐</p>
+            <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>Enable Two-Factor Authentication</h3>
+            <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+              Add an extra layer of security to your account with 2FA. You can enable it anytime from your profile settings.
+            </p>
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <button
+                onClick={() => { navigate('/profile?setup2fa=true') }}
+                style={{
+                  flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
+                  color: 'white', border: 'none', borderRadius: '8px',
+                  cursor: 'pointer', fontWeight: 'bold'
+                }}
+              >
+                Enable 2FA
+              </button>
+              <button
+                onClick={() => navigate('/profile')}
+                style={{
+                  flex: 1, padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)',
+                  color: '#aaa', border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '8px', cursor: 'pointer'
+                }}
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
