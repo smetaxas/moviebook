@@ -158,7 +158,7 @@ function Profile() {
     })
   }
 
-  const isUpcoming = (movie) => upcomingMovies.some(m => m.tmdb_id === movie.tmdb_id)
+  const isUpcoming = (movie) => upcomingMovies.some(m => String(m.tmdb_id) === String(movie.tmdb_id))
   const isWatched = (movie) => watchedMovies.some(m => m.movie_id === String(movie.tmdb_id))
   const isInWatchlist = (movie) => watchlist.some(m => m.movie_id === String(movie.tmdb_id))
 

@@ -8,6 +8,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
   const [inWatchlist, setInWatchlist] = useState(false)
   const [watchlistId, setWatchlistId] = useState(null)
   const [watchlistLoading, setWatchlistLoading] = useState(false)
+  const [watchlistHover, setWatchlistHover] = useState(false)
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -108,15 +109,25 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                 <button
                   onClick={handleWatchlist}
                   disabled={watchlistLoading}
+                  onMouseEnter={() => setWatchlistHover(true)}
+                  onMouseLeave={() => setWatchlistHover(false)}
                   style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                     padding: '0.6rem 1.25rem',
-                    backgroundColor: inWatchlist ? 'rgba(0,200,0,0.15)' : 'rgba(255,255,255,0.08)',
-                    color: inWatchlist ? '#00c800' : 'white',
-                    border: '1px solid ' + (inWatchlist ? '#00c800' : 'rgba(255,255,255,0.2)'),
-                    borderRadius: '4px', cursor: 'pointer', fontWeight: '600'
+                    backgroundColor: inWatchlist
+                      ? (watchlistHover ? 'rgba(229,9,20,0.15)' : 'rgba(0,200,0,0.15)')
+                      : 'rgba(255,255,255,0.08)',
+                    color: inWatchlist ? (watchlistHover ? '#e50914' : '#00c800') : 'white',
+                    border: '1px solid ' + (inWatchlist ? (watchlistHover ? '#e50914' : '#00c800') : 'rgba(255,255,255,0.2)'),
+                    borderRadius: '4px', cursor: watchlistLoading ? 'default' : 'pointer', fontWeight: '600',
+                    transition: 'background-color 0.15s, color 0.15s, border-color 0.15s'
                   }}
                 >
-                  {watchlistLoading ? '...' : inWatchlist ? 'In Watchlist' : '+ Watchlist'}
+                  {watchlistLoading
+                    ? '...'
+                    : inWatchlist
+                      ? (watchlistHover ? '🗑 Remove' : '✓ In Watchlist')
+                      : '+ Watchlist'}
                 </button>
               </div>
 
