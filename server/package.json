@@ -12,11 +12,12 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@getbrevo/brevo": "^6.0.3",
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.10.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
-    "csurf": "^1.11.0",
+    "csurf": "^1.2.2",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-mongo-sanitize": "^2.2.0",

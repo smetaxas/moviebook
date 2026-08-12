@@ -1,30 +1,23 @@
-const { Resend } = require('resend');
+const Brevo = require('@getbrevo/brevo');
 
-let resend = null;
-const getResendClient = () => {
-  if (!process.env.RESEND_API_KEY) {
-    throw new Error('RESEND_API_KEY is not set. Add it to server/.env to enable emails.');
-  }
-  if (!resend) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resend;
-};
+const sendBrevoEmail = async (to, subject, html) => {
+  const apiInstance = new Brevo.TransactionalEmailsApi();
+  apiInstance.authentications['apiKey'].apiKey = process.env.BREVO_API_KEY;
 
-const sendEmail = async (options) => {
-  const { data, error } = await getResendClient().emails.send(options);
-  if (error) {
-    throw new Error(`Resend failed to send email: ${error.message}`);
-  }
-  return data;
+  const email = new Brevo.SendSmtpEmail();
+  email.sender = { name: 'CineLog', email: 'noreply@cinelog.app' };
+  email.to = [{ email: to }];
+  email.subject = subject;
+  email.htmlContent = html;
+
+  await apiInstance.sendTransacEmail(email);
 };
 
 const sendOTPEmail = async (email, otp) => {
-  await sendEmail({
-    from: 'CineLog <onboarding@resend.dev>',
-    to: email,
-    subject: 'Your CineLog Login Code',
-    html: `
+  await sendBrevoEmail(
+    email,
+    'Your CineLog Login Code',
+    `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 2rem; background-color: #1a1a1a; border-radius: 16px;">
         <h1 style="color: white; text-align: center;">🎬 CineLog</h1>
         <p style="color: #aaa; text-align: center;">Your login verification code:</p>
@@ -34,16 +27,15 @@ const sendOTPEmail = async (email, otp) => {
         <p style="color: #aaa; text-align: center; font-size: 0.8rem; margin-top: 1rem;">This code expires in 5 minutes.</p>
       </div>
     `
-  });
+  );
 };
 
 const sendVerificationEmail = async (email, token) => {
   const verificationUrl = `${process.env.CLIENT_URL}/verify-email?token=${token}`;
-  await sendEmail({
-    from: 'CineLog <onboarding@resend.dev>',
-    to: email,
-    subject: 'Verify your CineLog account',
-    html: `
+  await sendBrevoEmail(
+    email,
+    'Verify your CineLog account',
+    `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 2rem; background-color: #1a1a1a; border-radius: 16px;">
         <h1 style="color: white; text-align: center;">🎬 CineLog</h1>
         <p style="color: #aaa; text-align: center;">Please verify your email address to activate your account.</p>
@@ -53,15 +45,14 @@ const sendVerificationEmail = async (email, token) => {
         <p style="color: #aaa; text-align: center; font-size: 0.8rem; margin-top: 1rem;">This link expires in 24 hours.</p>
       </div>
     `
-  });
+  );
 };
 
 const sendPasswordResetEmail = async (email, resetUrl) => {
-  await sendEmail({
-    from: 'CineLog <onboarding@resend.dev>',
-    to: email,
-    subject: 'Reset your CineLog password',
-    html: `
+  await sendBrevoEmail(
+    email,
+    'Reset your CineLog password',
+    `
       <div style="font-family: Arial, sans-serif; max-width: 400px; margin: 0 auto; padding: 2rem; background-color: #1a1a1a; border-radius: 16px;">
         <h1 style="color: white; text-align: center;">🎬 CineLog</h1>
         <p style="color: #aaa; text-align: center;">We received a request to reset your password.</p>
@@ -73,7 +64,7 @@ const sendPasswordResetEmail = async (email, resetUrl) => {
         <p style="color: #aaa; text-align: center; font-size: 0.8rem;">This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
       </div>
     `
-  });
+  );
 };
 
 module.exports = { sendOTPEmail, sendVerificationEmail, sendPasswordResetEmail };
