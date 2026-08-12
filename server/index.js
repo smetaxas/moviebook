@@ -18,7 +18,19 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Security headers
-app.use(helmet())
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      imgSrc: ["'self'", "data:", "https://image.tmdb.org", "https://res.cloudinary.com"],
+      connectSrc: ["'self'", "https://moviebook-opal.vercel.app", "https://moviebook-production-0b76.up.railway.app"],
+    }
+  },
+  crossOriginEmbedderPolicy: false
+}))
 
 // CORS
 app.use(cors({
