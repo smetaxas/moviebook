@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auditLog = require('../middleware/audit');
-const { sendOTPEmail, sendVerificationEmail } = require('../config/email');
+const { sendOTPEmail, sendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
 
 // Validation middleware
 const registerValidation = [
@@ -152,11 +152,6 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check if email is verified
-    if (!user.email_verified) {
-      return res.status(403).json({ message: 'Please verify your email before logging in.' });
-    }
-
     // Check if account is locked
     if (user.isLocked()) {
       const minutesLeft = Math.ceil((user.lock_until - Date.now()) / 60000)
@@ -290,6 +285,68 @@ router.post('/verify-otp', async (req, res) => {
       userId: user._id,
       username: user.username
     });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Forgot Password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ message: 'If this email exists, you will receive a reset link.' });
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex')
+    const resetExpires = new Date(Date.now() + 60 * 60 * 1000)
+
+    await user.updateOne({
+      reset_password_token: resetToken,
+      reset_password_expires: resetExpires
+    })
+
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`
+
+    await sendPasswordResetEmail(user.email, resetUrl)
+
+    await auditLog('PASSWORD_RESET_REQUEST', user._id, req.ip, { email }, true);
+
+    res.json({ message: 'If this email exists, you will receive a reset link.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Reset Password
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    const user = await User.findOne({
+      reset_password_token: token,
+      reset_password_expires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    await user.updateOne({
+      password: hashedPassword,
+      reset_password_token: null,
+      reset_password_expires: null,
+      login_attempts: 0,
+      lock_until: null
+    })
+
+    await auditLog('PASSWORD_RESET', user._id, req.ip, { email: user.email }, true);
+
+    res.json({ message: 'Password reset successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
