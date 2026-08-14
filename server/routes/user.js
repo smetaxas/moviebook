@@ -49,7 +49,7 @@ router.post('/profile/photo', requireAuth, upload.single('photo'), async (req, r
     const user = await User.findByIdAndUpdate(
       req.userId,
       { profile_photo: result.secure_url },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password -__v');
 
     res.json({ message: 'Photo uploaded successfully', profile_photo: result.secure_url, user });

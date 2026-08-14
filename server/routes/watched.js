@@ -122,7 +122,7 @@ router.patch('/:id/rating', requireAuth, async (req, res) => {
     const watchedMovie = await WatchedMovie.findOneAndUpdate(
       { _id: req.params.id, user_id: req.userId },
       { rating },
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-__v');
 
     if (!watchedMovie) {

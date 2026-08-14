@@ -13,6 +13,7 @@ const commentRoutes = require('./routes/comments');
 const watchlistRoutes = require('./routes/watchlist');
 const twoFactorRoutes = require('./routes/twoFactor');
 const requireAuth = require('./middleware/auth');
+const cookieParser = require('cookie-parser');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -31,6 +32,8 @@ app.use(helmet({
   },
   crossOriginEmbedderPolicy: false
 }))
+
+app.use(cookieParser());
 
 // CORS
 app.use(cors({

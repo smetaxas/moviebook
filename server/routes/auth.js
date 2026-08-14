@@ -6,7 +6,22 @@ const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auditLog = require('../middleware/audit');
-const { sendOTPEmail, sendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
+const { sendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
+
+// Cookie options
+const accessTokenCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 15 * 60 * 1000 // 15 minutes
+}
+
+const refreshTokenCookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+}
 
 // Validation middleware
 const registerValidation = [
@@ -72,7 +87,6 @@ router.post('/register', registerValidation, async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = await User.create({ email, password: hashedPassword, username });
 
-    // Generate verification token
     const verificationToken = crypto.randomBytes(32).toString('hex')
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
@@ -81,7 +95,6 @@ router.post('/register', registerValidation, async (req, res) => {
       email_verification_expires: verificationExpires
     })
 
-    // Send verification email
     try {
       await sendVerificationEmail(user.email, verificationToken)
     } catch (emailErr) {
@@ -94,6 +107,9 @@ router.post('/register', registerValidation, async (req, res) => {
     const refreshToken = jwt.sign({ userId: user._id }, process.env.JWT_REFRESH_SECRET, { expiresIn: '7d' })
 
     await user.updateOne({ refresh_token: refreshToken })
+
+    res.cookie('accessToken', accessToken, accessTokenCookieOptions)
+    res.cookie('refreshToken', refreshToken, refreshTokenCookieOptions)
 
     res.status(201).json({
       message: 'User created successfully. Please check your email to verify your account.',
@@ -152,7 +168,6 @@ router.post('/login', loginValidation, async (req, res) => {
       return res.status(400).json({ message: 'Invalid credentials' });
     }
 
-    // Check if account is locked
     if (user.isLocked()) {
       const minutesLeft = Math.ceil((user.lock_until - Date.now()) / 60000)
       await auditLog('ACCOUNT_LOCKED', user._id, req.ip, { email, minutesLeft }, false);
@@ -174,7 +189,6 @@ router.post('/login', loginValidation, async (req, res) => {
       })
     }
 
-    // Reset login attempts on success
     if (user.login_attempts > 0) {
       await user.updateOne({ $set: { login_attempts: 0 }, $unset: { lock_until: 1 } })
     }
@@ -189,6 +203,9 @@ router.post('/login', loginValidation, async (req, res) => {
     await user.updateOne({ refresh_token: refreshToken })
 
     await auditLog('LOGIN_SUCCESS', user._id, req.ip, { email: user.email }, true);
+
+    res.cookie('accessToken', accessToken, accessTokenCookieOptions)
+    res.cookie('refreshToken', refreshToken, refreshTokenCookieOptions)
 
     res.json({
       message: 'Login successful',
@@ -206,7 +223,7 @@ router.post('/login', loginValidation, async (req, res) => {
 // Refresh token
 router.post('/refresh', async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken
     if (!refreshToken) {
       return res.status(401).json({ message: 'Refresh token required' });
     }
@@ -221,6 +238,7 @@ router.post('/refresh', async (req, res) => {
 
     const accessToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: '15m' })
 
+    res.cookie('accessToken', accessToken, accessTokenCookieOptions)
     res.json({ token: accessToken })
   } catch (err) {
     res.status(401).json({ message: 'Invalid or expired refresh token' });
@@ -230,7 +248,7 @@ router.post('/refresh', async (req, res) => {
 // Logout
 router.post('/logout', async (req, res) => {
   try {
-    const { refreshToken } = req.body;
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken
     if (refreshToken) {
       const user = await User.findOneAndUpdate(
         { refresh_token: refreshToken },
@@ -240,6 +258,8 @@ router.post('/logout', async (req, res) => {
         await auditLog('LOGOUT', user._id, req.ip, {}, true);
       }
     }
+    res.clearCookie('accessToken')
+    res.clearCookie('refreshToken')
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -277,6 +297,9 @@ router.post('/verify-otp', async (req, res) => {
 
     await auditLog('LOGIN_SUCCESS_OTP', user._id, req.ip, { email: user.email }, true);
 
+    res.cookie('accessToken', accessToken, accessTokenCookieOptions)
+    res.cookie('refreshToken', refreshToken, refreshTokenCookieOptions)
+
     res.json({
       message: 'Login successful',
       token: accessToken,
@@ -293,6 +316,7 @@ router.post('/verify-otp', async (req, res) => {
 // Forgot Password
 router.post('/forgot-password', async (req, res) => {
   try {
+    console.log('Forgot password request:', req.body)
     const { email } = req.body;
 
     const user = await User.findOne({ email });
@@ -310,12 +334,15 @@ router.post('/forgot-password', async (req, res) => {
 
     const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`
 
+    console.log('Sending password reset email to:', user.email)
     await sendPasswordResetEmail(user.email, resetUrl)
+    console.log('Password reset email sent successfully')
 
     await auditLog('PASSWORD_RESET_REQUEST', user._id, req.ip, { email }, true);
 
     res.json({ message: 'If this email exists, you will receive a reset link.' });
   } catch (err) {
+    console.log('Forgot password error:', err.message)
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 });

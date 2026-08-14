@@ -35,23 +35,30 @@ function Profile() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetchProfile()
-    fetchWatchedMovies()
-    fetchWatchlist()
-    fetchTrendingMovies()
-    fetchUpcomingMovies()
-    fetchGenres()
+    const loadAll = async () => {
+      const [profile] = await Promise.all([
+        fetchProfile(),
+        fetchWatchedMovies(),
+        fetchWatchlist(),
+        fetchTrendingMovies(),
+        fetchUpcomingMovies(),
+        fetchGenres()
+      ])
+      if (profile && !profile.two_factor_enabled) {
+        setShow2FAPrompt(true)
+      }
+    }
+    loadAll()
   }, [])
 
   const fetchProfile = async () => {
     try {
       const res = await api.get('/user/profile')
       setUser(res.data)
-      if (!res.data.two_factor_enabled) {
-        setShow2FAPrompt(true)
-      }
+      return res.data
     } catch (err) {
       setError('Failed to load profile')
+      return null
     }
   }
 
