@@ -8,6 +8,7 @@ import LogMovieModal from '../Movies/LogMovieModal'
 import TwoFactorSetup from './TwoFactorSetup'
 import ConfirmModal from '../UI/ConfirmModal'
 import GenreSidebar from '../UI/GenreSidebar'
+import ImageCropModal from '../UI/ImageCropModal'
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -32,33 +33,28 @@ function Profile() {
   const [movieToLog, setMovieToLog] = useState(null)
   const [showDropdown, setShowDropdown] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [showCropModal, setShowCropModal] = useState(false)
+  const [cropImageSrc, setCropImageSrc] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
-    const loadAll = async () => {
-      const [profile] = await Promise.all([
-        fetchProfile(),
-        fetchWatchedMovies(),
-        fetchWatchlist(),
-        fetchTrendingMovies(),
-        fetchUpcomingMovies(),
-        fetchGenres()
-      ])
-      if (profile && !profile.two_factor_enabled) {
-        setShow2FAPrompt(true)
-      }
-    }
-    loadAll()
+    fetchProfile()
+    fetchWatchedMovies()
+    fetchWatchlist()
+    fetchTrendingMovies()
+    fetchUpcomingMovies()
+    fetchGenres()
   }, [])
 
   const fetchProfile = async () => {
     try {
       const res = await api.get('/user/profile')
       setUser(res.data)
-      return res.data
+      if (!res.data.two_factor_enabled) {
+        setShow2FAPrompt(true)
+      }
     } catch (err) {
       setError('Failed to load profile')
-      return null
     }
   }
 
@@ -146,8 +142,21 @@ function Profile() {
   const handlePhotoUpload = async (e) => {
     const file = e.target.files[0]
     if (!file) return
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      setCropImageSrc(reader.result)
+      setShowCropModal(true)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const handleCropComplete = async (croppedBlob) => {
+    setShowCropModal(false)
+    setCropImageSrc(null)
+
     const formData = new FormData()
-    formData.append('photo', file)
+    formData.append('photo', croppedBlob, 'profile.jpg')
     try {
       const res = await api.post('/user/profile/photo', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -165,24 +174,12 @@ function Profile() {
     })
   }
 
-  const isUpcoming = (movie) => upcomingMovies.some(m => String(m.tmdb_id) === String(movie.tmdb_id))
-  const isWatched = (movie) => watchedMovies.some(m => m.movie_id === String(movie.tmdb_id))
-  const isInWatchlist = (movie) => watchlist.some(m => m.movie_id === String(movie.tmdb_id))
-
-  const withTrackedFirst = (movies) => {
-    const tracked = []
-    const rest = []
-    movies.forEach(movie => {
-      if (isWatched(movie) || isInWatchlist(movie)) tracked.push(movie)
-      else rest.push(movie)
-    })
-    return [...tracked, ...rest]
-  }
+  const isUpcoming = (movie) => upcomingMovies.some(m => m.tmdb_id === movie.tmdb_id)
 
   if (error) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>{error}</p>
   if (!user) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>Loading...</p>
 
-  const MovieGrid = ({ movies, onClick, badgeFor }) => (
+  const MovieGrid = ({ movies, onClick }) => (
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
@@ -195,43 +192,27 @@ function Profile() {
           to { opacity: 1; transform: translateY(0); }
         }
       `}</style>
-      {movies.map((movie, i) => {
-        const badge = badgeFor && badgeFor(movie)
-        return (
-          <div
-            key={movie._id || movie.tmdb_id || i}
-            onClick={() => onClick(movie)}
-            style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <div style={{ position: 'relative' }}>
-              {(movie.movie_poster || movie.poster_url) ? (
-                <img src={movie.movie_poster || movie.poster_url} alt={movie.movie_title || movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
-              ) : (
-                <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ color: '#aaa' }}>No Poster</span>
-                </div>
-              )}
-              {badge && (
-                <span style={{
-                  position: 'absolute', top: '6px', right: '6px',
-                  backgroundColor: 'rgba(0,0,0,0.75)', color: badge.color,
-                  border: `1px solid ${badge.color}`, borderRadius: '999px',
-                  padding: '0.15rem 0.5rem', fontSize: '0.65rem', fontWeight: '600',
-                  backdropFilter: 'blur(4px)'
-                }}>
-                  {badge.label}
-                </span>
-              )}
+      {movies.map((movie, i) => (
+        <div
+          key={movie._id || movie.tmdb_id || i}
+          onClick={() => onClick(movie)}
+          style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          {(movie.movie_poster || movie.poster_url) ? (
+            <img src={movie.movie_poster || movie.poster_url} alt={movie.movie_title || movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+          ) : (
+            <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ color: '#aaa' }}>No Poster</span>
             </div>
-            <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.movie_title || movie.title}</p>
-            <p style={{ fontSize: '0.75rem', color: movie.release_date ? '#e50914' : '#aaa', margin: 0 }}>
-              {movie.release_date ? `📅 ${movie.release_date}` : movie.rating ? `⭐ ${movie.rating}/5` : movie.year}
-            </p>
-          </div>
-        )
-      })}
+          )}
+          <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.movie_title || movie.title}</p>
+          <p style={{ fontSize: '0.75rem', color: movie.release_date ? '#e50914' : '#aaa', margin: 0 }}>
+            {movie.release_date ? `📅 ${movie.release_date}` : movie.rating ? `⭐ ${movie.rating}/5` : movie.year}
+          </p>
+        </div>
+      ))}
     </div>
   )
 
@@ -253,7 +234,7 @@ function Profile() {
   )
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white', position: 'relative' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       {/* Navbar */}
       <div style={{
         backgroundColor: 'rgba(0,0,0,0.95)',
@@ -265,7 +246,13 @@ function Profile() {
         boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <span style={{ fontSize: '1.5rem' }}></span>
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            style={{ padding: '0.4rem 0.6rem', backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem' }}
+          >
+            {sidebarOpen ? '◀' : '▶'}
+          </button>
+          <span style={{ fontSize: '1.5rem' }}>🎬</span>
           <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
             Cine<span style={{ color: '#e50914' }}>Log</span>
           </span>
@@ -317,61 +304,26 @@ function Profile() {
         </div>
       </div>
 
-      {/* Sidebar toggle tab */}
-      <button
-        onClick={() => setSidebarOpen(!sidebarOpen)}
-        aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-        style={{
-          position: 'absolute', top: '64px', left: '122px',
-          transform: 'translate(-50%, -50%)',
-          width: '36px', height: '22px',
-          backgroundColor: '#1a1a1a',
-          border: '1px solid rgba(229,9,20,0.4)',
-          borderRadius: '0 0 12px 12px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          cursor: 'pointer', zIndex: 101,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
-          transition: 'background-color 0.15s ease, transform 0.15s ease'
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.backgroundColor = 'rgba(229,9,20,0.2)'
-          e.currentTarget.style.transform = 'translate(-50%, -50%) translateY(2px)'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.backgroundColor = '#1a1a1a'
-          e.currentTarget.style.transform = 'translate(-50%, -50%)'
-        }}
-      >
-        <span style={{
-          color: '#e50914', fontSize: '0.75rem', lineHeight: 1,
-          display: 'inline-block',
-          transform: sidebarOpen ? 'rotate(0deg)' : 'rotate(180deg)',
-          transition: 'transform 0.2s ease'
-        }}>
-          ▾
-        </span>
-      </button>
-
       {/* Main Layout */}
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
 
-        <GenreSidebar
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          genres={genres}
-          selectedGenre={selectedGenre}
-          onSelectGenre={(genre) => fetchGenreMovies(genre)}
-          yearFrom={yearFrom}
-          yearTo={yearTo}
-          onYearFromChange={(val) => {
-            setYearFrom(val)
-            if (selectedGenre) fetchGenreMovies(selectedGenre, val, yearTo)
-          }}
-          onYearToChange={(val) => {
-            setYearTo(val)
-            if (selectedGenre) fetchGenreMovies(selectedGenre, yearFrom, val)
-          }}
-        />
+        {sidebarOpen && (
+          <GenreSidebar
+            genres={genres}
+            selectedGenre={selectedGenre}
+            onSelectGenre={(genre) => fetchGenreMovies(genre)}
+            yearFrom={yearFrom}
+            yearTo={yearTo}
+            onYearFromChange={(val) => {
+              setYearFrom(val)
+              if (selectedGenre) fetchGenreMovies(selectedGenre, val, yearTo)
+            }}
+            onYearToChange={(val) => {
+              setYearTo(val)
+              if (selectedGenre) fetchGenreMovies(selectedGenre, yearFrom, val)
+            }}
+          />
+        )}
 
         {/* Main Content */}
         <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>
@@ -427,15 +379,7 @@ function Profile() {
               {genreMovies.length === 0 ? (
                 <p style={{ color: '#aaa', marginBottom: '2rem' }}>No movies found.</p>
               ) : (
-                <MovieGrid
-                  movies={withTrackedFirst(genreMovies)}
-                  onClick={setSelectedTrendingMovie}
-                  badgeFor={(movie) => {
-                    if (isWatched(movie)) return { label: '✓ Watched', color: '#00c800' }
-                    if (isInWatchlist(movie)) return { label: '🎯 Watchlist', color: '#e50914' }
-                    return null
-                  }}
-                />
+                <MovieGrid movies={genreMovies} onClick={setSelectedTrendingMovie} />
               )}
             </>
           )}
@@ -505,11 +449,11 @@ function Profile() {
           movie={selectedTrendingMovie}
           onClose={() => setSelectedTrendingMovie(null)}
           hideLog={isUpcoming(selectedTrendingMovie)}
+          onWatchlistChange={fetchWatchlist}
           onLogMovie={(movie) => {
             setSelectedTrendingMovie(null)
             setMovieToLog(movie)
           }}
-          onWatchlistChange={fetchWatchlist}
         />
       )}
 
@@ -528,7 +472,6 @@ function Profile() {
         <SearchModal
           onClose={() => setShowSearch(false)}
           onMovieLogged={fetchWatchedMovies}
-          onWatchlistChange={fetchWatchlist}
         />
       )}
 
@@ -541,6 +484,26 @@ function Profile() {
         />
       )}
 
+      {showDeleteAccount && (
+        <ConfirmModal
+          icon="⚠️"
+          title="Delete Account"
+          message="Are you sure you want to delete your account? This action cannot be undone!"
+          confirmText="Delete"
+          onConfirm={handleDeleteAccount}
+          onCancel={() => setShowDeleteAccount(false)}
+        />
+      )}
+
+      {showCropModal && (
+        <ImageCropModal
+          imageSrc={cropImageSrc}
+          onCropComplete={handleCropComplete}
+          onClose={() => { setShowCropModal(false); setCropImageSrc(null) }}
+        />
+      )}
+
+      {/* 2FA Prompt */}
       {show2FAPrompt && (
         <div style={{
           position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
@@ -557,43 +520,24 @@ function Profile() {
             <p style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🔐</p>
             <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>Enable Two-Factor Authentication</h3>
             <p style={{ color: '#aaa', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
-              Add an extra layer of security to your account with 2FA. You can enable it anytime from your profile.
+              Add an extra layer of security to your account with 2FA. You can enable it anytime from your profile settings.
             </p>
             <div style={{ display: 'flex', gap: '1rem' }}>
               <button
                 onClick={() => { setShow2FAPrompt(false); setShow2FASetup(true) }}
-                style={{
-                  flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
-                  color: 'white', border: 'none', borderRadius: '8px',
-                  cursor: 'pointer', fontWeight: 'bold'
-                }}
+                style={{ flex: 1, padding: '0.75rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}
               >
                 Enable 2FA
               </button>
               <button
                 onClick={() => setShow2FAPrompt(false)}
-                style={{
-                  flex: 1, padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)',
-                  color: '#aaa', border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: '8px', cursor: 'pointer'
-                }}
+                style={{ flex: 1, padding: '0.75rem', backgroundColor: 'rgba(255,255,255,0.1)', color: '#aaa', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', cursor: 'pointer' }}
               >
                 Skip for now
               </button>
             </div>
           </div>
         </div>
-      )}
-
-      {showDeleteAccount && (
-        <ConfirmModal
-          icon="⚠️"
-          title="Delete Account"
-          message="Are you sure you want to delete your account? This action cannot be undone!"
-          confirmText="Delete"
-          onConfirm={handleDeleteAccount}
-          onCancel={() => setShowDeleteAccount(false)}
-        />
       )}
     </div>
   )
