@@ -57,7 +57,9 @@ function GenreSidebar({ genres, selectedGenre, onSelectGenre, yearFrom, yearTo, 
       overflow: 'hidden',
       position: 'sticky', top: '64px',
       height: 'calc(100vh - 64px)',
-      transition: 'width 260ms cubic-bezier(0.4, 0, 0.2, 1), min-width 260ms cubic-bezier(0.4, 0, 0.2, 1)'
+      transition: isOpen
+        ? 'width 260ms cubic-bezier(0.4, 0, 0.2, 1) 80ms, min-width 260ms cubic-bezier(0.4, 0, 0.2, 1) 80ms'
+        : 'width 260ms cubic-bezier(0.4, 0, 0.2, 1) 140ms, min-width 260ms cubic-bezier(0.4, 0, 0.2, 1) 140ms'
     }}>
       <div style={{
         width: '244px', height: '100%',
@@ -68,7 +70,11 @@ function GenreSidebar({ genres, selectedGenre, onSelectGenre, yearFrom, yearTo, 
         scrollbarWidth: 'thin',
         scrollbarColor: 'rgba(255,255,255,0.1) transparent',
         opacity: isOpen ? 1 : 0,
-        transition: 'opacity 180ms ease'
+        transform: isOpen ? 'translateY(0)' : 'translateY(-24px)',
+        pointerEvents: isOpen ? 'auto' : 'none',
+        transition: isOpen
+          ? 'opacity 220ms ease 80ms, transform 260ms cubic-bezier(0.4, 0, 0.2, 1) 80ms'
+          : 'opacity 180ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1)'
       }}>
 
         <div style={{

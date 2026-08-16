@@ -38,7 +38,7 @@ function WatchedMoviesPage() {
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(229,9,20,0.3)',
         padding: '0 2rem',
-        height: '64px',
+        height: '84px',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',

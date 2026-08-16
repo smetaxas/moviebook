@@ -150,7 +150,9 @@ function Login() {
       }}>
         {!show2FA ? (
           <>
-            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>Cine<span style={{ color: '#e50914' }}>Log</span></h1>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+              <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
+            </div>
             <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
 
             {verified && (

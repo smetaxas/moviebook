@@ -147,7 +147,9 @@ function Register() {
         borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '600px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
       }}>
-        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>Cine<span style={{ color: '#e50914' }}>Log</span></h1>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+          <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
+        </div>
         <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Create your account</p>
 
         {error && (

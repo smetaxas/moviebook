@@ -103,11 +103,9 @@ router.get('/genre/:genreId', requireAuth, async (req, res) => {
     if (yearTo) baseUrl += `&primary_release_date.lte=${yearTo}-12-31`;
     else baseUrl += `&primary_release_date.lte=${today}`;
 
-    // Πάρε την πρώτη σελίδα για να δεις πόσες σελίδες υπάρχουν
     const firstRes = await fetch(`${baseUrl}&page=1`).then(r => r.json());
-    const totalPages = Math.min(firstRes.total_pages, 10); // max 10 σελίδες = 200 ταινίες
+    const totalPages = Math.min(firstRes.total_pages, 10);
 
-    // Fetch όλες τις σελίδες παράλληλα
     const pagePromises = Array.from({ length: totalPages }, (_, i) =>
       fetch(`${baseUrl}&page=${i + 1}`).then(r => r.json())
     );
@@ -132,7 +130,7 @@ router.get('/genre/:genreId', requireAuth, async (req, res) => {
   }
 });
 
-// Get movie details from TMDB
+// Get movie details from TMDB + OMDb
 router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
   try {
     const [movieRes, creditsRes, videosRes] = await Promise.all([
@@ -141,10 +139,37 @@ router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
       fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/videos?api_key=${process.env.TMDB_API_KEY}&language=en-US`)
     ]);
     const [data, credits, videos] = await Promise.all([movieRes.json(), creditsRes.json(), videosRes.json()]);
+
     const director = credits.crew?.find(member => member.job === 'Director')?.name || null;
     const trailer = videos.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube') || null;
+
+    // Cast - top 10
+    const cast = credits.cast?.slice(0, 10).map(member => ({
+      name: member.name,
+      character: member.character,
+      profile_url: member.profile_path ? `https://image.tmdb.org/t/p/w185${member.profile_path}` : null
+    })) || []
+
+    // OMDb data για ratings
+    let omdbData = null
+    if (data.imdb_id) {
+      try {
+        const omdbRes = await fetch(`https://www.omdbapi.com/?i=${data.imdb_id}&apikey=${process.env.OMDB_API_KEY}`)
+        omdbData = await omdbRes.json()
+      } catch (omdbErr) {
+        console.error('OMDb error:', omdbErr.message)
+      }
+    }
+
+    const ratings = {
+      imdb: omdbData?.imdbRating !== 'N/A' ? omdbData?.imdbRating : null,
+      rotten_tomatoes: omdbData?.Ratings?.find(r => r.Source === 'Rotten Tomatoes')?.Value || null,
+      metacritic: omdbData?.Metascore !== 'N/A' ? omdbData?.Metascore : null
+    }
+
     const movie = {
       tmdb_id: data.id,
+      imdb_id: data.imdb_id,
       title: data.title,
       year: data.release_date ? new Date(data.release_date).getFullYear() : null,
       release_date: data.release_date,
@@ -152,8 +177,11 @@ router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
       director,
       genres: data.genres?.map(g => g.name) || [],
       poster_url: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : '',
+      backdrop_url: data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : '',
       runtime: data.runtime,
-      trailer_key: trailer ? trailer.key : null
+      trailer_key: trailer ? trailer.key : null,
+      cast,
+      ratings
     }
     res.json(movie)
   } catch (err) {

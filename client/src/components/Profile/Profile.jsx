@@ -50,8 +50,9 @@ function Profile() {
     try {
       const res = await api.get('/user/profile')
       setUser(res.data)
-      if (!res.data.two_factor_enabled) {
+      if (!res.data.two_factor_enabled && !sessionStorage.getItem('2fa_prompt_shown')) {
         setShow2FAPrompt(true)
+        sessionStorage.setItem('2fa_prompt_shown', 'true')
       }
     } catch (err) {
       setError('Failed to load profile')
@@ -240,22 +241,58 @@ function Profile() {
         backgroundColor: 'rgba(0,0,0,0.95)',
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(229,9,20,0.3)',
-        padding: '0 2rem', height: '64px',
+        padding: '0 2rem', height: '84px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         position: 'sticky', top: 0, zIndex: 100,
         boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', height: '100%', position: 'relative' }}>
+          <img src="/logo.png" alt="CineLog" style={{ height: '60px', objectFit: 'contain' }} />
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            style={{ padding: '0.4rem 0.6rem', backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem' }}
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+            style={{
+              position: 'absolute',
+              left: '50%',
+              bottom: 0,
+              transform: 'translate(-50%, 50%) scale(1)',
+              width: '19px',
+              height: '19px',
+              borderRadius: '50%',
+              background: 'linear-gradient(160deg, #1c1c1c 0%, #0c0c0c 100%)',
+              border: '1px solid rgba(229,9,20,0.5)',
+              color: '#ff3b3b',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              zIndex: 101,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.55), 0 0 0 4px rgba(0,0,0,0.95)',
+              transition: 'transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease'
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.transform = 'translate(-50%, 50%) scale(1.1)'
+              e.currentTarget.style.boxShadow = '0 2px 14px rgba(229,9,20,0.5), 0 0 0 4px rgba(0,0,0,0.95)'
+              e.currentTarget.style.borderColor = '#e50914'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translate(-50%, 50%) scale(1)'
+              e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.55), 0 0 0 4px rgba(0,0,0,0.95)'
+              e.currentTarget.style.borderColor = 'rgba(229,9,20,0.5)'
+            }}
           >
-            {sidebarOpen ? '◀' : '▶'}
+            <svg
+              width="8" height="8" viewBox="0 0 24 24" fill="none"
+              style={{
+                transform: sidebarOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+              }}
+            >
+              <path d="M5 8.5L12 15.5L19 8.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
           </button>
-          <span style={{ fontSize: '1.5rem' }}>🎬</span>
-          <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
-            Cine<span style={{ color: '#e50914' }}>Log</span>
-          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -307,23 +344,23 @@ function Profile() {
       {/* Main Layout */}
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
 
-        {sidebarOpen && (
-          <GenreSidebar
-            genres={genres}
-            selectedGenre={selectedGenre}
-            onSelectGenre={(genre) => fetchGenreMovies(genre)}
-            yearFrom={yearFrom}
-            yearTo={yearTo}
-            onYearFromChange={(val) => {
-              setYearFrom(val)
-              if (selectedGenre) fetchGenreMovies(selectedGenre, val, yearTo)
-            }}
-            onYearToChange={(val) => {
-              setYearTo(val)
-              if (selectedGenre) fetchGenreMovies(selectedGenre, yearFrom, val)
-            }}
-          />
-        )}
+        <GenreSidebar
+          isOpen={sidebarOpen}
+          genres={genres}
+          selectedGenre={selectedGenre}
+          onSelectGenre={(genre) => fetchGenreMovies(genre)}
+          onClose={() => setSidebarOpen(false)}
+          yearFrom={yearFrom}
+          yearTo={yearTo}
+          onYearFromChange={(val) => {
+            setYearFrom(val)
+            if (selectedGenre) fetchGenreMovies(selectedGenre, val, yearTo)
+          }}
+          onYearToChange={(val) => {
+            setYearTo(val)
+            if (selectedGenre) fetchGenreMovies(selectedGenre, yearFrom, val)
+          }}
+        />
 
         {/* Main Content */}
         <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>

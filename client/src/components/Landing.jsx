@@ -1,4 +1,32 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+
+const HERO_PHRASE = 'Your Personal Movie Journal'
+
+function useTypewriter(text, { typingSpeed = 80, deletingSpeed = 40, pauseTime = 1800, pauseEmpty = 500 } = {}) {
+  const [display, setDisplay] = useState('')
+  const [phase, setPhase] = useState('typing')
+
+  useEffect(() => {
+    let timeout
+    if (phase === 'typing') {
+      if (display.length < text.length) {
+        timeout = setTimeout(() => setDisplay(text.slice(0, display.length + 1)), typingSpeed)
+      } else {
+        timeout = setTimeout(() => setPhase('deleting'), pauseTime)
+      }
+    } else {
+      if (display.length > 0) {
+        timeout = setTimeout(() => setDisplay(text.slice(0, display.length - 1)), deletingSpeed)
+      } else {
+        timeout = setTimeout(() => setPhase('typing'), pauseEmpty)
+      }
+    }
+    return () => clearTimeout(timeout)
+  }, [display, phase, text, typingSpeed, deletingSpeed, pauseTime, pauseEmpty])
+
+  return display
+}
 
 const POSTER_URLS = [
   'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
@@ -27,6 +55,7 @@ const POSTER_URLS = [
 
 function Landing() {
   const navigate = useNavigate()
+  const typedPhrase = useTypewriter(HERO_PHRASE)
   const row1 = [...POSTER_URLS, ...POSTER_URLS]
   const row2 = [...POSTER_URLS.slice(4), ...POSTER_URLS, ...POSTER_URLS.slice(0, 4)]
   const row3 = [...POSTER_URLS.slice(8), ...POSTER_URLS, ...POSTER_URLS.slice(0, 8)]
@@ -45,6 +74,10 @@ function Landing() {
         @keyframes scrollRight {
           0% { transform: translateX(-50%); }
           100% { transform: translateX(0); }
+        }
+        @keyframes cursorBlink {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0; }
         }
       `}</style>
 
@@ -88,10 +121,8 @@ function Landing() {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         padding: '1.5rem 3rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.5rem', fontWeight: '800', letterSpacing: '-0.5px', color: 'white' }}>
-            Cine<span style={{ color: '#e50914' }}>Log</span>
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <img src="/logo.png" alt="CineLog" style={{ height: '96px', objectFit: 'contain' }} />
         </div>
       </div>
 
@@ -103,13 +134,22 @@ function Landing() {
         textAlign: 'center', padding: '2rem'
       }}>
         <div style={{
-          backgroundColor: 'rgba(229,9,20,0.15)',
-          border: '1px solid rgba(229,9,20,0.3)',
-          borderRadius: '50px', padding: '0.4rem 1.2rem',
-          marginBottom: '1.5rem', display: 'inline-block'
+          marginBottom: '1.5rem', minHeight: '1.3rem',
+          display: 'inline-flex', alignItems: 'center'
         }}>
-          <span style={{ color: '#e50914', fontSize: '0.85rem', fontWeight: '600' }}>
-            Your Personal Movie Journal
+          <span style={{
+            color: '#ff3b3b', fontSize: '0.95rem', fontWeight: '600',
+            letterSpacing: '0.5px',
+            textShadow: '0 0 14px rgba(229,9,20,0.85), 0 0 32px rgba(229,9,20,0.4), 0 2px 6px rgba(0,0,0,0.7)'
+          }}>
+            {typedPhrase}
+            <span style={{
+              display: 'inline-block', width: '2px', height: '0.9em',
+              marginLeft: '3px', verticalAlign: '-0.1em',
+              backgroundColor: '#ff3b3b',
+              boxShadow: '0 0 8px rgba(229,9,20,0.9)',
+              animation: 'cursorBlink 0.9s step-end infinite'
+            }} />
           </span>
         </div>
 

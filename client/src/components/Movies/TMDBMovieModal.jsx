@@ -89,6 +89,41 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
             )}
             <div style={{ flex: 1 }}>
               <h3 style={{ color: 'white', margin: '0 0 0.5rem 0' }}>{tmdbMovie.title} ({tmdbMovie.year})</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                {tmdbMovie.imdb_id && (
+                  <a
+                    href={`https://www.imdb.com/title/${tmdbMovie.imdb_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                      padding: '0.3rem 0.6rem',
+                      backgroundColor: tmdbMovie.imdb_rating != null ? 'rgba(245,197,24,0.12)' : 'transparent',
+                      border: '1px solid rgba(245,197,24,0.45)',
+                      borderRadius: '6px', color: '#f5c518', textDecoration: 'none',
+                      fontWeight: '700', fontSize: '0.85rem'
+                    }}
+                  >
+                    <span style={{ backgroundColor: '#f5c518', color: '#000', borderRadius: '3px', padding: '0 4px', fontSize: '0.7rem' }}>IMDb</span>
+                    {tmdbMovie.imdb_rating != null ? `${tmdbMovie.imdb_rating.toFixed(1)}/10` : 'Rating unavailable — view on IMDb ↗'}
+                  </a>
+                )}
+                <a
+                  href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(tmdbMovie.title)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                    padding: '0.3rem 0.6rem',
+                    backgroundColor: tmdbMovie.rotten_tomatoes == null ? 'transparent' : (tmdbMovie.rotten_tomatoes >= 60 ? 'rgba(250,50,10,0.12)' : 'rgba(112,168,80,0.12)'),
+                    border: '1px solid ' + (tmdbMovie.rotten_tomatoes == null ? 'rgba(255,255,255,0.15)' : (tmdbMovie.rotten_tomatoes >= 60 ? 'rgba(250,50,10,0.45)' : 'rgba(112,168,80,0.45)')),
+                    borderRadius: '6px', color: tmdbMovie.rotten_tomatoes == null ? '#888' : (tmdbMovie.rotten_tomatoes >= 60 ? '#fa320a' : '#70a850'),
+                    textDecoration: 'none', fontWeight: '700', fontSize: '0.85rem'
+                  }}
+                >
+                  {tmdbMovie.rotten_tomatoes == null ? '🍅' : (tmdbMovie.rotten_tomatoes >= 60 ? '🍅' : '🤢')} {tmdbMovie.rotten_tomatoes != null ? `${tmdbMovie.rotten_tomatoes}%` : 'Not available — view on Rotten Tomatoes ↗'}
+                </a>
+              </div>
               <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎬 {tmdbMovie.director}</p>
               <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>🎭 {tmdbMovie.genres.join(', ')}</p>
               <p style={{ color: '#aaa', margin: '0 0 0.25rem 0' }}>⏱ {tmdbMovie.runtime} min</p>

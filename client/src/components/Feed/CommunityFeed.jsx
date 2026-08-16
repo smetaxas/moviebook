@@ -101,15 +101,13 @@ function CommunityFeed() {
         backgroundColor: 'rgba(0,0,0,0.95)',
         backdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(229,9,20,0.3)',
-        padding: '0 2rem', height: '64px',
+        padding: '0 2rem', height: '84px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         position: 'sticky', top: 0, zIndex: 100,
         boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
-            Cine<span style={{ color: '#e50914' }}>Log</span>
-          </span>
+          <img src="/logo.png" alt="CineLog" style={{ height: '60px', objectFit: 'contain' }} />
         </div>
         <button
           onClick={() => navigate('/profile')}
