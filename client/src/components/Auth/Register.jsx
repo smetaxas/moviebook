@@ -2,6 +2,9 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import ReCAPTCHA from 'react-google-recaptcha'
+import Emoji from '../UI/Emoji'
+import AuthField from './AuthField'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 const POSTER_URLS = [
   'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
@@ -40,6 +43,7 @@ function Register() {
   const [captchaToken, setCaptchaToken] = useState(null)
   const [passwordStrength, setPasswordStrength] = useState('')
   const [usernameSuggestions, setUsernameSuggestions] = useState([])
+  const [submitHover, setSubmitHover] = useState(false)
   const recaptchaRef = useRef(null)
   const navigate = useNavigate()
 
@@ -87,19 +91,24 @@ function Register() {
   const row1 = [...POSTER_URLS, ...POSTER_URLS]
   const row2 = [...POSTER_URLS.slice(4), ...POSTER_URLS, ...POSTER_URLS.slice(0, 4)]
 
-  const inputStyle = {
-    width: '100%', padding: '0.75rem', borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)',
-    color: 'white', boxSizing: 'border-box', fontSize: '1rem', outline: 'none'
-  }
+  const strengthColor = passwordStrength === 'weak' ? '#dc3c4f' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
 
-  const strengthColor = passwordStrength === 'weak' ? '#e50914' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
+  const eyeToggle = (value, setter) => (
+    <span
+      onClick={() => setter(!value)}
+      style={{ cursor: 'pointer', fontSize: '1.1rem', opacity: 0.75, transition: 'opacity 0.15s' }}
+      onMouseEnter={e => { e.currentTarget.style.opacity = 1 }}
+      onMouseLeave={e => { e.currentTarget.style.opacity = 0.75 }}
+    >
+      <Emoji>{value ? '🙈' : '👁️'}</Emoji>
+    </span>
+  )
 
   return (
     <div style={{
       minHeight: '100vh', backgroundColor: '#0a0a0a',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      overflow: 'hidden', position: 'relative'
+      overflow: 'hidden', position: 'relative', padding: '2rem 1rem'
     }}>
       <style>{`
         @keyframes scrollLeft {
@@ -140,75 +149,77 @@ function Register() {
       }} />
 
       <div style={{
-        position: 'relative', zIndex: 10,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(10px)',
+        position: 'relative', overflow: 'hidden', zIndex: 10,
+        background: 'linear-gradient(160deg, rgba(30,30,30,0.9) 0%, rgba(14,14,14,0.9) 100%)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '600px',
-        boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
+        borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '600px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(179,31,47,0.05)'
       }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
-          <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
-        </div>
-        <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Create your account</p>
+        <div style={{
+          position: 'absolute', top: '-80px', right: '-80px', width: '200px', height: '200px',
+          background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
+        }} />
 
-        {error && (
-          <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
-            {error}
-          </p>
-        )}
+        <div style={{ position: 'relative' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
+          </div>
+          <p style={{ color: '#999', textAlign: 'center', marginBottom: '2rem', fontSize: '0.9rem' }}>Create your account</p>
 
-        <form onSubmit={handleRegister} autoComplete="on">
-          {/* Username & Email side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div>
-              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Username</label>
-              <input
-                type="text"
-                name="username"
-                value={username}
-                onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
-                required
-                autoComplete="username"
-                style={inputStyle}
-              />
-              {usernameSuggestions.length > 0 && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <p style={{ color: '#aaa', fontSize: '0.8rem', margin: '0 0 0.25rem 0' }}>Try one of these:</p>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {usernameSuggestions.map((suggestion, i) => (
-                      <span
-                        key={i}
-                        onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
-                        style={{ padding: '0.25rem 0.5rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid #e50914', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', color: '#e50914' }}
-                      >
-                        {suggestion}
-                      </span>
-                    ))}
+          {error && (
+            <p style={{ color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.1)', border: '1px solid rgba(179,31,47,0.25)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
+              {error}
+            </p>
+          )}
+
+          <form onSubmit={handleRegister} autoComplete="on">
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.1rem' }}>
+              <div>
+                <AuthField
+                  label="Username"
+                  icon="👤"
+                  type="text"
+                  name="username"
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
+                  required
+                  autoComplete="username"
+                />
+                {usernameSuggestions.length > 0 && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <p style={{ color: '#888', fontSize: '0.78rem', margin: '0 0 0.3rem 0' }}>Try one of these:</p>
+                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      {usernameSuggestions.map((suggestion, i) => (
+                        <span
+                          key={i}
+                          onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
+                          style={{ padding: '0.25rem 0.55rem', backgroundColor: 'rgba(179,31,47,0.12)', border: '1px solid rgba(179,31,47,0.4)', borderRadius: '999px', cursor: 'pointer', fontSize: '0.78rem', color: '#dc3c4f', fontWeight: 600 }}
+                        >
+                          {suggestion}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-            <div>
-              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
-              <input
+                )}
+              </div>
+              <AuthField
+                label="Email"
+                icon="✉️"
                 type="email"
                 name="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
-                style={inputStyle}
               />
             </div>
-          </div>
 
-          {/* Password & Confirm Password side by side */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            <div>
-              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.1rem' }}>
+              <div>
+                <AuthField
+                  label="Password"
+                  icon="🔒"
                   type={showPassword ? 'text' : 'password'}
                   name="password"
                   value={password}
@@ -218,77 +229,70 @@ function Register() {
                   }}
                   required
                   autoComplete="new-password"
-                  style={{ ...inputStyle, paddingRight: '3rem' }}
+                  rightSlot={eyeToggle(showPassword, setShowPassword)}
                 />
-                <span
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </span>
-              </div>
-              {passwordStrength && (
-                <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
-                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e50914' }} />
-                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
-                    <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
+                {passwordStrength && (
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
+                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#b31f2f' }} />
+                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
+                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
+                    </div>
+                    <p style={{ color: strengthColor, fontSize: '0.78rem', margin: 0, fontWeight: 600 }}>
+                      {passwordStrength === 'weak' ? 'Weak' : passwordStrength === 'medium' ? 'Medium' : 'Strong'}
+                    </p>
                   </div>
-                  <p style={{ color: strengthColor, fontSize: '0.8rem', margin: 0 }}>
-                    {passwordStrength === 'weak' ? 'Weak' : passwordStrength === 'medium' ? 'Medium' : 'Strong'}
-                  </p>
-                </div>
-              )}
-            </div>
-            <div>
-              <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Confirm Password</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  name="confirm-password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  autoComplete="new-password"
-                  style={{ ...inputStyle, paddingRight: '3rem' }}
-                />
-                <span
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-                >
-                  {showConfirmPassword ? '🙈' : '👁️'}
-                </span>
+                )}
               </div>
+              <AuthField
+                label="Confirm Password"
+                icon="🔒"
+                type={showConfirmPassword ? 'text' : 'password'}
+                name="confirm-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                autoComplete="new-password"
+                rightSlot={eyeToggle(showConfirmPassword, setShowConfirmPassword)}
+              />
             </div>
-          </div>
 
-          {/* reCAPTCHA & Button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginTop: '1rem' }}>
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
-              onChange={(token) => setCaptchaToken(token)}
-              onExpired={() => setCaptchaToken(null)}
-              theme="dark"
-            />
-            <button type="submit" style={{
-              flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
-              color: 'white', border: 'none', borderRadius: '8px',
-              cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold',
-              height: '50px'
-            }}>
-              Create Account
-            </button>
-          </div>
-        </form>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.1rem', marginTop: '1.5rem' }}>
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+                onChange={(token) => setCaptchaToken(token)}
+                onExpired={() => setCaptchaToken(null)}
+                theme="dark"
+              />
+              <button
+                type="submit"
+                onMouseEnter={() => setSubmitHover(true)}
+                onMouseLeave={() => setSubmitHover(false)}
+                style={{
+                  width: '100%', padding: '0.85rem', backgroundColor: submitHover ? '#dc3c4f' : '#b31f2f',
+                  color: 'white', border: 'none', borderRadius: '10px',
+                  cursor: 'pointer', fontSize: '1rem', fontWeight: '700',
+                  boxShadow: submitHover ? '0 8px 22px rgba(179,31,47,0.5)' : '0 4px 14px rgba(179,31,47,0.3)',
+                  transform: submitHover ? 'translateY(-1px)' : 'translateY(0)',
+                  transition: 'background-color 0.15s, box-shadow 0.15s, transform 0.15s'
+                }}
+              >
+                Create Account
+              </button>
+            </div>
+          </form>
 
-        <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-          Already have an account?{' '}
-          <span onClick={() => navigate('/login')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
-            Login
-          </span>
-        </p>
+          <p style={{ color: '#999', textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.9rem' }}>
+            Already have an account?{' '}
+            <span onClick={() => navigate('/login')} style={{ color: '#dc3c4f', cursor: 'pointer', fontWeight: '700' }}>
+              Login
+            </span>
+          </p>
+        </div>
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }

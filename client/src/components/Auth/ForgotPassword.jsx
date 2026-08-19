@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -51,7 +52,7 @@ function ForgotPassword() {
               If an account exists for <strong style={{ color: 'white' }}>{email}</strong>, a password reset link has been sent. Check your inbox.
             </p>
             <p style={{ textAlign: 'center' }}>
-              <span onClick={() => navigate('/login')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+              <span onClick={() => navigate('/login')} style={{ color: '#b31f2f', cursor: 'pointer', fontWeight: 'bold' }}>
                 ← Back to Login
               </span>
             </p>
@@ -63,7 +64,7 @@ function ForgotPassword() {
             </p>
 
             {error && (
-              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ color: '#b31f2f', backgroundColor: 'rgba(179,31,47,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
                 {error}
               </p>
             )}
@@ -83,7 +84,7 @@ function ForgotPassword() {
               </div>
 
               <button type="submit" disabled={loading} style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                 color: 'white', border: 'none', borderRadius: '8px',
                 cursor: loading ? 'default' : 'pointer', fontSize: '1rem', fontWeight: 'bold',
                 opacity: loading ? 0.7 : 1
@@ -93,13 +94,15 @@ function ForgotPassword() {
             </form>
 
             <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <span onClick={() => navigate('/login')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+              <span onClick={() => navigate('/login')} style={{ color: '#b31f2f', cursor: 'pointer', fontWeight: 'bold' }}>
                 ← Back to Login
               </span>
             </p>
           </>
         )}
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }

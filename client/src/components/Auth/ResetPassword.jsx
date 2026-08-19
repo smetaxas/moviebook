@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
+import BadRequest from '../BadRequest'
+import Emoji from '../UI/Emoji'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -13,6 +16,10 @@ function ResetPassword() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token')
+
+  if (!token) {
+    return <BadRequest message="This password reset link is missing its token. Request a new one from the forgot password page." />
+  }
 
   const inputStyle = {
     width: '100%', padding: '0.75rem', borderRadius: '8px',
@@ -33,7 +40,7 @@ function ResetPassword() {
   }
 
   const passwordStrength = checkPasswordStrength(password)
-  const strengthColor = passwordStrength === 'weak' ? '#e50914' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
+  const strengthColor = passwordStrength === 'weak' ? '#b31f2f' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -41,11 +48,6 @@ function ResetPassword() {
 
     if (password !== confirmPassword) {
       setError('Passwords do not match')
-      return
-    }
-
-    if (!token) {
-      setError('Invalid reset link')
       return
     }
 
@@ -73,7 +75,7 @@ function ResetPassword() {
         borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px',
         boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
       }}>
-        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>Cine<span style={{ color: '#e50914' }}>Log</span></h1>
+        <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>Cine<span style={{ color: '#b31f2f' }}>Log</span></h1>
 
         {success ? (
           <div style={{ textAlign: 'center' }}>
@@ -88,14 +90,8 @@ function ResetPassword() {
             </p>
 
             {error && (
-              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ color: '#b31f2f', backgroundColor: 'rgba(179,31,47,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
                 {error}
-              </p>
-            )}
-
-            {!token && (
-              <p style={{ color: '#e50914', textAlign: 'center', marginBottom: '1rem' }}>
-                Invalid or missing reset token.
               </p>
             )}
 
@@ -115,13 +111,13 @@ function ResetPassword() {
                     onClick={() => setShowPassword(!showPassword)}
                     style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
                   >
-                    {showPassword ? '🙈' : '👁️'}
+                    <Emoji>{showPassword ? '🙈' : '👁️'}</Emoji>
                   </span>
                 </div>
                 {passwordStrength && (
                   <div style={{ marginTop: '0.5rem' }}>
                     <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
-                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#e50914' }} />
+                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#b31f2f' }} />
                       <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
                       <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
                     </div>
@@ -146,30 +142,32 @@ function ResetPassword() {
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
                   >
-                    {showConfirmPassword ? '🙈' : '👁️'}
+                    <Emoji>{showConfirmPassword ? '🙈' : '👁️'}</Emoji>
                   </span>
                 </div>
               </div>
 
-              <button type="submit" disabled={loading || !token} style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+              <button type="submit" disabled={loading} style={{
+                width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                 color: 'white', border: 'none', borderRadius: '8px',
-                cursor: loading || !token ? 'default' : 'pointer',
+                cursor: loading ? 'default' : 'pointer',
                 fontSize: '1rem', fontWeight: 'bold',
-                opacity: loading || !token ? 0.7 : 1
+                opacity: loading ? 0.7 : 1
               }}>
                 {loading ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
 
             <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <span onClick={() => navigate('/login')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+              <span onClick={() => navigate('/login')} style={{ color: '#b31f2f', cursor: 'pointer', fontWeight: 'bold' }}>
                 Back to Login
               </span>
             </p>
           </>
         )}
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }

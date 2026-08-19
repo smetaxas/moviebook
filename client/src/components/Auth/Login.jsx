@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
+import Emoji from '../UI/Emoji'
+import AuthField from './AuthField'
+import AuthCheckbox from './AuthCheckbox'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 const POSTER_URLS = [
   'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
@@ -38,6 +42,8 @@ function Login() {
   const [twoFACode, setTwoFACode] = useState('')
   const [tempUserId, setTempUserId] = useState(null)
   const [twoFAError, setTwoFAError] = useState('')
+  const [submitHover, setSubmitHover] = useState(false)
+  const [eyeHover, setEyeHover] = useState(false)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const verified = searchParams.get('verified')
@@ -90,11 +96,25 @@ function Login() {
   const row1 = [...POSTER_URLS, ...POSTER_URLS]
   const row2 = [...POSTER_URLS.slice(4), ...POSTER_URLS, ...POSTER_URLS.slice(0, 4)]
 
-  const inputStyle = {
-    width: '100%', padding: '0.75rem', borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)',
-    color: 'white', boxSizing: 'border-box', fontSize: '1rem', outline: 'none'
+  const submitButtonStyle = {
+    width: '100%', padding: '0.85rem', backgroundColor: submitHover ? '#dc3c4f' : '#b31f2f',
+    color: 'white', border: 'none', borderRadius: '10px',
+    cursor: 'pointer', fontSize: '1rem', fontWeight: '700',
+    boxShadow: submitHover ? '0 8px 22px rgba(179,31,47,0.5)' : '0 4px 14px rgba(179,31,47,0.3)',
+    transform: submitHover ? 'translateY(-1px)' : 'translateY(0)',
+    transition: 'background-color 0.15s, box-shadow 0.15s, transform 0.15s'
   }
+
+  const eyeToggle = (value, setter) => (
+    <span
+      onClick={() => setter(!value)}
+      onMouseEnter={() => setEyeHover(true)}
+      onMouseLeave={() => setEyeHover(false)}
+      style={{ cursor: 'pointer', fontSize: '1.1rem', opacity: eyeHover ? 1 : 0.7, transition: 'opacity 0.15s' }}
+    >
+      <Emoji>{value ? '🙈' : '👁️'}</Emoji>
+    </span>
+  )
 
   return (
     <div style={{
@@ -141,116 +161,102 @@ function Login() {
       }} />
 
       <div style={{
-        position: 'relative', zIndex: 10,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(10px)',
+        position: 'relative', overflow: 'hidden', zIndex: 10,
+        background: 'linear-gradient(160deg, rgba(30,30,30,0.9) 0%, rgba(14,14,14,0.9) 100%)',
+        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px', padding: '2.5rem', width: '100%', maxWidth: '400px',
-        boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
+        borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '400px',
+        boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(179,31,47,0.05)'
       }}>
+        <div style={{
+          position: 'absolute', top: '-80px', right: '-80px', width: '200px', height: '200px',
+          background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
+        }} />
+
         {!show2FA ? (
-          <>
+          <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
               <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
             </div>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Sign in to your account</p>
+            <p style={{ color: '#999', textAlign: 'center', marginBottom: '2rem', fontSize: '0.9rem' }}>Sign in to your account</p>
 
             {verified && (
-              <p style={{ color: '#00c800', backgroundColor: 'rgba(0,200,0,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ color: '#00c800', backgroundColor: 'rgba(0,200,0,0.1)', border: '1px solid rgba(0,200,0,0.25)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
                 Email verified successfully! You can now login.
               </p>
             )}
 
             {error && (
-              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.1)', border: '1px solid rgba(179,31,47,0.25)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
                 {error}
               </p>
             )}
 
             <form onSubmit={handleLogin}>
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  style={inputStyle}
-                />
-              </div>
+              <AuthField
+                label="Email"
+                icon="✉️"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoComplete="email"
+                style={{ marginBottom: '1.1rem' }}
+              />
 
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Password</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    autoComplete="current-password"
-                    style={{ ...inputStyle, paddingRight: '3rem' }}
-                  />
-                  <span
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-                  >
-                    {showPassword ? '🙈' : '👁️'}
-                  </span>
-                </div>
-              </div>
+              <AuthField
+                label="Password"
+                icon="🔒"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                autoComplete="current-password"
+                rightSlot={eyeToggle(showPassword, setShowPassword)}
+                style={{ marginBottom: '1.25rem' }}
+              />
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    style={{ cursor: 'pointer', width: '16px', height: '16px' }}
-                  />
-                  <label htmlFor="rememberMe" style={{ color: '#aaa', fontSize: '0.9rem', cursor: 'pointer' }}>
-                    Remember me
-                  </label>
-                </div>
+                <AuthCheckbox checked={rememberMe} onChange={setRememberMe} label="Remember me" />
                 <span
                   onClick={() => navigate('/forgot-password')}
-                  style={{ color: '#e50914', cursor: 'pointer', fontSize: '0.85rem' }}
+                  style={{ color: '#dc3c4f', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600 }}
                 >
                   Forgot Password?
                 </span>
               </div>
 
-              <button type="submit" style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
-                color: 'white', border: 'none', borderRadius: '8px',
-                cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
-              }}>
+              <button
+                type="submit"
+                onMouseEnter={() => setSubmitHover(true)}
+                onMouseLeave={() => setSubmitHover(false)}
+                style={submitButtonStyle}
+              >
                 Login
               </button>
             </form>
 
-            <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
+            <p style={{ color: '#999', textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.9rem' }}>
               Don't have an account?{' '}
-              <span onClick={() => navigate('/register')} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
+              <span onClick={() => navigate('/register')} style={{ color: '#dc3c4f', cursor: 'pointer', fontWeight: '700' }}>
                 Register
               </span>
             </p>
-          </>
+          </div>
         ) : (
-          <>
-            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '2rem' }}>🔐 2FA</h1>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>Open your authenticator app and enter the 6-digit code</p>
+          <div style={{ position: 'relative' }}>
+            <h1 style={{ color: 'white', textAlign: 'center', marginBottom: '0.5rem', fontSize: '1.8rem', fontWeight: 800 }}><Emoji>🔐</Emoji> 2FA</h1>
+            <p style={{ color: '#999', textAlign: 'center', marginBottom: '2rem', fontSize: '0.9rem' }}>Open your authenticator app and enter the 6-digit code</p>
 
             {twoFAError && (
-              <p style={{ color: '#e50914', backgroundColor: 'rgba(229,9,20,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
+              <p style={{ color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.1)', border: '1px solid rgba(179,31,47,0.25)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
                 {twoFAError}
               </p>
             )}
 
             <form onSubmit={handle2FASubmit}>
               <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>6-digit code</label>
+                <label style={{ color: '#888', display: 'block', marginBottom: '0.5rem', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', textAlign: 'center' }}>6-digit code</label>
                 <input
                   type="text"
                   value={twoFACode}
@@ -259,27 +265,35 @@ function Login() {
                   placeholder="000000"
                   required
                   autoFocus
-                  style={{ ...inputStyle, textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem' }}
+                  style={{
+                    width: '100%', padding: '0.85rem', borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)',
+                    color: 'white', boxSizing: 'border-box', outline: 'none',
+                    textAlign: 'center', fontSize: '1.5rem', letterSpacing: '0.5rem', fontWeight: 700
+                  }}
                 />
               </div>
 
-              <button type="submit" style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
-                color: 'white', border: 'none', borderRadius: '8px',
-                cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
-              }}>
+              <button
+                type="submit"
+                onMouseEnter={() => setSubmitHover(true)}
+                onMouseLeave={() => setSubmitHover(false)}
+                style={submitButtonStyle}
+              >
                 Verify
               </button>
             </form>
 
-            <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <span onClick={() => setShow2FA(false)} style={{ color: '#e50914', cursor: 'pointer', fontWeight: 'bold' }}>
-                Back to Login
+            <p style={{ color: '#999', textAlign: 'center', marginTop: '1.5rem' }}>
+              <span onClick={() => setShow2FA(false)} style={{ color: '#dc3c4f', cursor: 'pointer', fontWeight: '700' }}>
+                ← Back to Login
               </span>
             </p>
-          </>
+          </div>
         )}
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }

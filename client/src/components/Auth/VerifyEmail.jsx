@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
+import BadRequest from '../BadRequest'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function VerifyEmail() {
   const [status, setStatus] = useState('verifying')
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const token = searchParams.get('token')
 
   useEffect(() => {
-    const token = searchParams.get('token')
     if (token) {
       verifyEmail(token)
-    } else {
-      setStatus('error')
     }
   }, [])
 
@@ -24,6 +24,10 @@ function VerifyEmail() {
     } catch (err) {
       setStatus('error')
     }
+  }
+
+  if (!token) {
+    return <BadRequest message="This email verification link is missing its token. Try registering again or check your email for the correct link." />
   }
 
   return (
@@ -56,13 +60,15 @@ function VerifyEmail() {
             <p style={{ color: '#aaa' }}>Invalid or expired link.</p>
             <button
               onClick={() => navigate('/login')}
-              style={{ marginTop: '1rem', padding: '0.75rem 1.5rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+              style={{ marginTop: '1rem', padding: '0.75rem 1.5rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
             >
               Go to Login
             </button>
           </>
         )}
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }
