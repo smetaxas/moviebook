@@ -68,7 +68,7 @@ function TwoFactorSetup({ onClose, onEnabled, onDisabled, isEnabled }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '1.5rem', cursor: 'pointer' }}>✕</button>
         </div>
 
-        {error && <p style={{ color: '#e50914', textAlign: 'center', marginBottom: '1rem' }}>{error}</p>}
+        {error && <p style={{ color: '#b31f2f', textAlign: 'center', marginBottom: '1rem' }}>{error}</p>}
 
         {isEnabled ? (
           <div style={{ textAlign: 'center' }}>
@@ -80,7 +80,7 @@ function TwoFactorSetup({ onClose, onEnabled, onDisabled, isEnabled }) {
               onClick={handleDisable}
               disabled={loading}
               style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                 color: 'white', border: 'none', borderRadius: '8px',
                 cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
               }}
@@ -99,7 +99,7 @@ function TwoFactorSetup({ onClose, onEnabled, onDisabled, isEnabled }) {
                   onClick={handleSetup}
                   disabled={loading}
                   style={{
-                    width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                    width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                     color: 'white', border: 'none', borderRadius: '8px',
                     cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
                   }}
@@ -145,7 +145,7 @@ function TwoFactorSetup({ onClose, onEnabled, onDisabled, isEnabled }) {
                     type="submit"
                     disabled={loading}
                     style={{
-                      width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                      width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                       color: 'white', border: 'none', borderRadius: '8px',
                       cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
                     }}
@@ -164,7 +164,7 @@ function TwoFactorSetup({ onClose, onEnabled, onDisabled, isEnabled }) {
                 <button
                   onClick={onClose}
                   style={{
-                    width: '100%', padding: '0.75rem', backgroundColor: '#e50914',
+                    width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
                     color: 'white', border: 'none', borderRadius: '8px',
                     cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
                   }}

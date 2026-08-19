@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import MovieDetailModal from '../Movies/MovieDetailModal'
+import Navbar from '../UI/Navbar'
+import NavButton from '../UI/NavButton'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function WatchedMoviesPage() {
   const [watchedMovies, setWatchedMovies] = useState([])
@@ -33,33 +36,11 @@ function WatchedMoviesPage() {
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
-      <div style={{
-        backgroundColor: 'rgba(0,0,0,0.95)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(229,9,20,0.3)',
-        padding: '0 2rem',
-        height: '84px',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontSize: '1.5rem' }}>🎬</span>
-          <span style={{ fontSize: '1.3rem', fontWeight: '700', letterSpacing: '-0.5px' }}>
-            Cine<span style={{ color: '#e50914' }}>Log</span>
-          </span>
-        </div>
-        <button
-          onClick={() => navigate('/profile')}
-          style={{ padding: '0.5rem 1.25rem', backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}
-        >
+      <Navbar>
+        <NavButton onClick={() => navigate('/profile')}>
           ← Back to Profile
-        </button>
-      </div>
+        </NavButton>
+      </Navbar>
 
       <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{
@@ -74,7 +55,7 @@ function WatchedMoviesPage() {
           gap: '1rem'
         }}>
           <div>
-            <p style={{ color: '#e50914', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 0.35rem 0' }}>
+            <p style={{ color: '#b31f2f', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 0.35rem 0' }}>
               Watched Library
             </p>
             <h1 style={{ margin: 0, fontSize: '1.6rem' }}>My Watched Movies</h1>
@@ -127,6 +108,8 @@ function WatchedMoviesPage() {
           onRatingUpdated={fetchWatchedMovies}
         />
       )}
+
+      <ScrollToTopButton />
     </div>
   )
 }

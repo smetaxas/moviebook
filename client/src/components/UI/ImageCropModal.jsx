@@ -103,7 +103,7 @@ function ImageCropModal({ imageSrc, onCropComplete, onClose }) {
             onClick={getCroppedImage}
             style={{
               flex: 1, padding: '0.75rem',
-              backgroundColor: '#e50914',
+              backgroundColor: '#b31f2f',
               color: 'white', border: 'none',
               borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold'
             }}

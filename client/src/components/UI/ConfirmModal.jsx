@@ -30,7 +30,7 @@ function ConfirmModal({ message, onConfirm, onCancel, icon, title, confirmText }
           <button
             onClick={onConfirm}
             style={{
-              flex: 1, padding: '0.75rem', backgroundColor: '#e50914',
+              flex: 1, padding: '0.75rem', backgroundColor: '#b31f2f',
               color: 'white', border: 'none',
               borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold'
             }}
