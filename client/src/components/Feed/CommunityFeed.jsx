@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import ScrollToTopButton from '../UI/ScrollToTopButton'
+import Navbar from '../UI/Navbar'
+import NavButton from '../UI/NavButton'
+import Avatar from '../UI/Avatar'
 
 function CommunityFeed() {
   const [query, setQuery] = useState('')
@@ -8,22 +12,29 @@ function CommunityFeed() {
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
   const [loading, setLoading] = useState(false)
+  const [searching, setSearching] = useState(false)
   const [newComments, setNewComments] = useState({})
+  const [inputFocused, setInputFocused] = useState(false)
   const navigate = useNavigate()
+  const location = useLocation()
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
 
   useEffect(() => {
     if (!query.trim()) {
       setSearchResults([])
+      setSearching(false)
       return
     }
+    setSearching(true)
     const timer = setTimeout(async () => {
       try {
         const res = await api.get(`/movies/search?q=${query}`)
         setSearchResults(res.data)
       } catch (err) {
         console.error('Search failed')
+      } finally {
+        setSearching(false)
       }
     }, 500)
     return () => clearTimeout(timer)
@@ -32,6 +43,10 @@ function CommunityFeed() {
   const fetchWatchedForMovie = async (tmdbId) => {
     const res = await api.get(`/watched/all/movie/${tmdbId}`)
     setWatchedMovies(res.data)
+  }
+
+  const goToUser = (userId) => {
+    navigate(`/user/${userId}`, { state: { backTo: '/feed', reopenMovie: selectedMovie } })
   }
 
   const handleSelectMovie = async (movie) => {
@@ -47,6 +62,16 @@ function CommunityFeed() {
       setLoading(false)
     }
   }
+
+  // Arriving back from a user's profile (e.g. clicked a commenter's name/photo) —
+  // reopen the movie's comment thread we came from instead of landing on a blank feed.
+  useEffect(() => {
+    if (location.state?.reopenMovie) {
+      handleSelectMovie(location.state.reopenMovie)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Poll for new ratings/logs (from any user, including yourself) while a movie is open
   useEffect(() => {
@@ -82,69 +107,96 @@ function CommunityFeed() {
     })
   }
 
-  const Avatar = ({ user, size = 40, onClick }) => (
-    <div onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', flexShrink: 0 }}>
-      {user?.profile_photo ? (
-        <img src={user.profile_photo} alt="" style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }} />
-      ) : (
-        <div style={{ width: size, height: size, borderRadius: '50%', backgroundColor: '#e50914', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: size * 0.35 }}>
-          {(user?.username || user?.email || '?')[0].toUpperCase()}
-        </div>
-      )}
-    </div>
+  const StarRating = ({ rating, size = 13 }) => (
+    <span style={{ display: 'inline-flex', gap: '1px', verticalAlign: 'middle' }}>
+      {[1, 2, 3, 4, 5].map(i => (
+        <span key={i} style={{ fontSize: size, lineHeight: 1, color: i <= Math.round(rating) ? '#dc3c4f' : 'rgba(255,255,255,0.15)' }}>★</span>
+      ))}
+    </span>
   )
+
+  const avgRating = watchedMovies.length
+    ? watchedMovies.reduce((sum, w) => sum + w.rating, 0) / watchedMovies.length
+    : 0
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
-      {/* Navbar */}
-      <div style={{
-        backgroundColor: 'rgba(0,0,0,0.95)',
-        backdropFilter: 'blur(20px)',
-        borderBottom: '1px solid rgba(229,9,20,0.3)',
-        padding: '0 2rem', height: '84px',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        position: 'sticky', top: 0, zIndex: 100,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <img src="/logo.png" alt="CineLog" style={{ height: '60px', objectFit: 'contain' }} />
-        </div>
-        <button
-          onClick={() => navigate('/profile')}
-          style={{ padding: '0.5rem 1.25rem', backgroundColor: 'rgba(255,255,255,0.08)', color: 'white', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.9rem' }}
-        >
-          👤 My Profile
-        </button>
-      </div>
+      <Navbar>
+        <NavButton onClick={() => navigate('/profile')} icon="👤">
+          My Profile
+        </NavButton>
+      </Navbar>
 
-      <div style={{ padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ padding: '2rem', maxWidth: '760px', margin: '0 auto' }}>
+
+        {/* Intro */}
+        {!selectedMovie && (
+          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+            <h2 style={{ margin: '0 0 0.4rem 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}>
+              🌍 Community Feed
+            </h2>
+            <p style={{ color: '#999', margin: 0, fontSize: '0.9rem' }}>
+              Pick a movie and see what everyone's saying about it.
+            </p>
+          </div>
+        )}
 
         {/* Search Box */}
         {!selectedMovie && (
-          <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '1rem' }}>
-              Select a movie to see community reviews!
-            </p>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="🔍 Search for a movie..."
-              style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', boxSizing: 'border-box', fontSize: '1rem', outline: 'none' }}
-            />
+          <div style={{
+            position: 'relative', overflow: 'hidden',
+            background: 'linear-gradient(135deg, rgba(179,31,47,0.08) 0%, rgba(255,255,255,0.03) 60%)',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px',
+            padding: '1.5rem', marginBottom: '1.5rem',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{ position: 'relative' }}>
+              <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: inputFocused ? '#dc3c4f' : '#666', fontSize: '1rem', transition: 'color 0.2s' }}>🔍</span>
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onFocus={() => setInputFocused(true)}
+                onBlur={() => setInputFocused(false)}
+                placeholder="Search for a movie..."
+                style={{
+                  width: '100%', padding: '0.85rem 1rem 0.85rem 2.5rem', borderRadius: '12px',
+                  border: '1px solid ' + (inputFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
+                  backgroundColor: 'rgba(255,255,255,0.05)', color: 'white',
+                  boxSizing: 'border-box', fontSize: '0.95rem', outline: 'none',
+                  boxShadow: inputFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
+                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                }}
+              />
+            </div>
+
+            {searching && (
+              <p style={{ color: '#666', fontSize: '0.8rem', textAlign: 'center', margin: '1rem 0 0 0' }}>Searching...</p>
+            )}
+
+            {!searching && query.trim() && searchResults.length === 0 && (
+              <p style={{ color: '#666', fontSize: '0.85rem', textAlign: 'center', margin: '1rem 0 0 0' }}>No movies found for "{query}"</p>
+            )}
+
             {searchResults.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '1rem', marginTop: '1.25rem' }}>
                 {searchResults.map(movie => (
-                  <div key={movie.tmdb_id} onClick={() => handleSelectMovie(movie)} style={{ textAlign: 'center', cursor: 'pointer', transition: 'transform 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'} onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
+                  <div
+                    key={movie.tmdb_id}
+                    onClick={() => handleSelectMovie(movie)}
+                    style={{ textAlign: 'center', cursor: 'pointer', borderRadius: '10px', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.45)' }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none' }}
+                  >
                     {movie.poster_url ? (
-                      <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '8px' }} />
+                      <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
                     ) : (
-                      <div style={{ width: '100%', height: '180px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ width: '100%', height: '180px', backgroundColor: '#1a1a1a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <span style={{ color: '#aaa' }}>No Poster</span>
                       </div>
                     )}
-                    <p style={{ color: 'white', fontSize: '0.8rem', marginTop: '0.5rem' }}>{movie.title}</p>
-                    <p style={{ color: '#aaa', fontSize: '0.75rem' }}>{movie.year}</p>
+                    <p style={{ color: 'white', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.15rem', fontWeight: 600 }}>{movie.title}</p>
+                    <p style={{ color: '#888', fontSize: '0.75rem', margin: 0 }}>{movie.year}</p>
                   </div>
                 ))}
               </div>
@@ -152,110 +204,182 @@ function CommunityFeed() {
           </div>
         )}
 
-        {/* Selected Movie Header */}
+        {/* Selected Movie Hero */}
         {selectedMovie && (
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px' }}>
-            {selectedMovie.poster_url && (
-              <img src={selectedMovie.poster_url} alt={selectedMovie.title} style={{ width: '60px', borderRadius: '8px' }} />
-            )}
-            <div style={{ flex: 1 }}>
-              <h3 style={{ margin: '0 0 0.25rem 0' }}>{selectedMovie.title} ({selectedMovie.year})</h3>
-              <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>{watchedMovies.length} logs from the community</p>
-            </div>
-            {watchedMovies.length > 0 && (
-              <div style={{ textAlign: 'center', padding: '0.5rem 1rem', backgroundColor: 'rgba(229,9,20,0.1)', border: '1px solid rgba(229,9,20,0.3)', borderRadius: '8px' }}>
-                <p style={{ fontSize: '1.3rem', fontWeight: 'bold', margin: 0, color: '#e50914' }}>
-                  ⭐ {(watchedMovies.reduce((sum, w) => sum + w.rating, 0) / watchedMovies.length).toFixed(1)}
-                </p>
-                <p style={{ color: '#aaa', fontSize: '0.7rem', margin: 0, whiteSpace: 'nowrap' }}>avg rating</p>
+          <div style={{
+            position: 'relative', overflow: 'hidden',
+            background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px',
+            padding: '1.5rem', marginBottom: '1.5rem',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+          }}>
+            <div style={{
+              position: 'absolute', top: '-60px', right: '-60px', width: '200px', height: '200px',
+              background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
+            }} />
+
+            <div style={{ position: 'relative', display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
+              <button
+                onClick={() => { setSelectedMovie(null); setWatchedMovies([]) }}
+                aria-label="Back to search"
+                title="Back to search"
+                style={{
+                  position: 'absolute', top: '-0.75rem', right: '-0.75rem',
+                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
+                  color: '#aaa', width: '30px', height: '30px', borderRadius: '50%',
+                  cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'background-color 0.15s, color 0.15s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)'; e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#aaa' }}
+              >
+                ✕
+              </button>
+
+              {selectedMovie.poster_url && (
+                <img src={selectedMovie.poster_url} alt={selectedMovie.title} style={{ width: '72px', borderRadius: '10px', boxShadow: '0 6px 18px rgba(0,0,0,0.5)', flexShrink: 0 }} />
+              )}
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1.3rem', fontWeight: 800 }}>{selectedMovie.title} <span style={{ color: '#888', fontWeight: 500 }}>({selectedMovie.year})</span></h3>
+                <p style={{ color: '#999', margin: 0, fontSize: '0.85rem' }}>💬 {watchedMovies.length} {watchedMovies.length === 1 ? 'log' : 'logs'} from the community</p>
               </div>
-            )}
-            <button onClick={() => { setSelectedMovie(null); setWatchedMovies([]) }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', fontSize: '1.5rem' }}>✕</button>
+
+              {watchedMovies.length > 0 && (
+                <div style={{
+                  textAlign: 'center', padding: '0.65rem 1.1rem',
+                  backgroundColor: 'rgba(179,31,47,0.12)', border: '1px solid rgba(179,31,47,0.35)',
+                  borderRadius: '14px', flexShrink: 0
+                }}>
+                  <p style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: '#dc3c4f', lineHeight: 1 }}>{avgRating.toFixed(1)}</p>
+                  <div style={{ margin: '0.3rem 0 0.15rem 0' }}><StarRating rating={avgRating} size={11} /></div>
+                  <p style={{ color: '#888', fontSize: '0.65rem', margin: 0, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}>avg rating</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {loading && <p style={{ textAlign: 'center', color: '#aaa' }}>Loading...</p>}
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0', animation: 'pulse 1.4s ease-in-out infinite' }}>🎬</p>
+            <p style={{ color: '#888', margin: 0, fontSize: '0.9rem' }}>Loading community logs...</p>
+            <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+          </div>
+        )}
 
         {/* Watched Movies with Comments */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          {watchedMovies.map(watched => (
-            <div key={watched._id} style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', overflow: 'hidden' }}>
+        {!loading && selectedMovie && watchedMovies.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🍿</p>
+            <p style={{ color: '#999', margin: 0 }}>Nobody has logged this movie yet. Be the first!</p>
+          </div>
+        )}
 
-              {/* User Header */}
-              <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Avatar
-                  user={watched.user_id}
-                  size={44}
-                  onClick={() => watched.user_id?._id !== currentUserId && navigate(`/user/${watched.user_id?._id}`)}
-                />
-                <div>
-                  <p
-                    style={{ margin: 0, fontWeight: '600', fontSize: '0.95rem', cursor: watched.user_id?._id !== currentUserId ? 'pointer' : 'default' }}
-                    onClick={() => watched.user_id?._id !== currentUserId && navigate(`/user/${watched.user_id?._id}`)}
-                  >
-                    {watched.user_id?.username || watched.user_id?.email}
-                  </p>
-                  <p style={{ color: '#aaa', fontSize: '0.8rem', margin: 0 }}>
-                    ⭐ {watched.rating}/5 · {formatDate(watched.watchedAt)}
-                  </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {watchedMovies.map(watched => {
+            const isOwn = watched.user_id?._id === currentUserId
+            return (
+              <div
+                key={watched._id}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '16px', overflow: 'hidden', transition: 'border-color 0.2s, transform 0.2s'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
+              >
+
+                {/* User Header */}
+                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Avatar
+                    user={watched.user_id}
+                    size={44}
+                    onClick={!isOwn ? () => goToUser(watched.user_id?._id) : undefined}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p
+                      style={{ margin: 0, fontWeight: '700', fontSize: '0.95rem', cursor: isOwn ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                      onClick={() => !isOwn && goToUser(watched.user_id?._id)}
+                    >
+                      {watched.user_id?.username || watched.user_id?.email}
+                      {isOwn && (
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.15)', border: '1px solid rgba(179,31,47,0.35)', borderRadius: '999px', padding: '0.1rem 0.5rem', letterSpacing: '0.03em' }}>YOU</span>
+                      )}
+                    </p>
+                    <p style={{ color: '#888', fontSize: '0.8rem', margin: '0.2rem 0 0 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <StarRating rating={watched.rating} /> <span style={{ color: '#555' }}>· {formatDate(watched.watchedAt)}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Comments */}
+                <div style={{ padding: '1.1rem 1.5rem' }}>
+                  {watched.comments.length > 0 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.1rem' }}>
+                      {watched.comments.map(comment => (
+                        <div key={comment._id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start' }}>
+                          <Avatar
+                            user={comment.commenter_id}
+                            size={30}
+                            onClick={comment.commenter_id?._id !== currentUserId ? () => goToUser(comment.commenter_id?._id) : undefined}
+                          />
+                          <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                              <span
+                                style={{ fontWeight: '700', fontSize: '0.85rem', color: 'white', cursor: comment.commenter_id?._id !== currentUserId ? 'pointer' : 'default' }}
+                                onClick={() => comment.commenter_id?._id !== currentUserId && goToUser(comment.commenter_id?._id)}
+                              >
+                                {comment.commenter_id?.username || comment.commenter_id?.email}
+                              </span>
+                              <span style={{ color: '#555', fontSize: '0.72rem' }}>{formatDate(comment.createdAt)}</span>
+                            </div>
+                            <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem', lineHeight: 1.4 }}>{comment.comment}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p style={{ color: '#555', fontSize: '0.85rem', marginBottom: '1.1rem' }}>No comments yet — say something!</p>
+                  )}
+
+                  {/* Comment Input */}
+                  {!isOwn && (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        type="text"
+                        value={newComments[watched._id] || ''}
+                        onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddComment(watched._id)}
+                        placeholder="Add a comment..."
+                        maxLength={500}
+                        style={{ flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem' }}
+                        onFocus={e => { e.target.style.borderColor = '#b31f2f'; e.target.style.boxShadow = '0 0 0 3px rgba(179,31,47,0.18)' }}
+                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none' }}
+                      />
+                      <button
+                        onClick={() => handleAddComment(watched._id)}
+                        disabled={!newComments[watched._id]?.trim()}
+                        style={{
+                          padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
+                          borderRadius: '999px', cursor: newComments[watched._id]?.trim() ? 'pointer' : 'default',
+                          fontWeight: '700', fontSize: '0.85rem',
+                          opacity: newComments[watched._id]?.trim() ? 1 : 0.45,
+                          transition: 'opacity 0.15s, background-color 0.15s'
+                        }}
+                      >
+                        Post
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Comments */}
-              <div style={{ padding: '1rem 1.5rem' }}>
-                {watched.comments.length > 0 ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1rem' }}>
-                    {watched.comments.map(comment => (
-                      <div key={comment._id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-                        <Avatar
-                          user={comment.commenter_id}
-                          size={32}
-                          onClick={() => comment.commenter_id?._id !== currentUserId && navigate(`/user/${comment.commenter_id?._id}`)}
-                        />
-                        <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '0.6rem 0.75rem' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                            <span
-                              style={{ fontWeight: '600', fontSize: '0.85rem', color: 'white', cursor: comment.commenter_id?._id !== currentUserId ? 'pointer' : 'default' }}
-                              onClick={() => comment.commenter_id?._id !== currentUserId && navigate(`/user/${comment.commenter_id?._id}`)}
-                            >
-                              {comment.commenter_id?.username || comment.commenter_id?.email}
-                            </span>
-                            <span style={{ color: '#555', fontSize: '0.75rem' }}>· {formatDate(comment.createdAt)}</span>
-                          </div>
-                          <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem' }}>{comment.comment}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p style={{ color: '#555', fontSize: '0.85rem', marginBottom: '1rem' }}>No comments yet!</p>
-                )}
-
-                {/* Comment Input */}
-                {watched.user_id?._id !== currentUserId && (
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
-                    <input
-                      type="text"
-                      value={newComments[watched._id] || ''}
-                      onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddComment(watched._id)}
-                      placeholder="Add a comment..."
-                      maxLength={500}
-                      style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem' }}
-                    />
-                    <button
-                      onClick={() => handleAddComment(watched._id)}
-                      style={{ padding: '0.5rem 1rem', backgroundColor: '#e50914', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
-                    >
-                      Post
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
+
+      <ScrollToTopButton />
     </div>
   )
 }

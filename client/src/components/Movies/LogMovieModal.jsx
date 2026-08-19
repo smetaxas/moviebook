@@ -59,14 +59,14 @@ function LogMovieModal({ movie, onClose, onLogged }) {
         background: 'linear-gradient(160deg, #1e1e1e 0%, #141414 100%)',
         padding: '2rem', borderRadius: '16px', width: '90%', maxWidth: '440px',
         border: '1px solid rgba(255,255,255,0.08)',
-        boxShadow: '0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(229,9,20,0.05)',
+        boxShadow: '0 24px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(179,31,47,0.05)',
         animation: 'logModalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
       }}>
         {/* Ambient glow accent */}
         <div style={{
           position: 'absolute', top: '-80px', right: '-80px',
           width: '200px', height: '200px', borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(229,9,20,0.25) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)',
           pointerEvents: 'none'
         }} />
 
@@ -100,8 +100,8 @@ function LogMovieModal({ movie, onClose, onLogged }) {
 
         {error && (
           <p style={{
-            color: '#ff6b6b', backgroundColor: 'rgba(255,0,0,0.08)',
-            border: '1px solid rgba(255,0,0,0.2)', borderRadius: '8px',
+            color: '#b31f2f', backgroundColor: 'rgba(179,31,47,0.08)',
+            border: '1px solid rgba(179,31,47,0.2)', borderRadius: '8px',
             padding: '0.6rem 0.8rem', fontSize: '0.85rem', marginTop: 0
           }}>{error}</p>
         )}
@@ -122,8 +122,8 @@ function LogMovieModal({ movie, onClose, onLogged }) {
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     fontSize: '2.4rem', lineHeight: 1, padding: '0.15rem',
-                    color: star <= displayRating ? '#e50914' : '#3a3a3a',
-                    textShadow: star <= displayRating ? '0 0 16px rgba(229,9,20,0.5)' : 'none',
+                    color: star <= displayRating ? '#b31f2f' : '#3a3a3a',
+                    textShadow: star <= displayRating ? '0 0 16px rgba(179,31,47,0.5)' : 'none',
                     transition: 'color 0.15s, text-shadow 0.15s',
                     animation: star === rating && star <= displayRating ? 'starPop 0.3s ease' : 'none'
                   }}
@@ -132,7 +132,7 @@ function LogMovieModal({ movie, onClose, onLogged }) {
                 </button>
               ))}
             </div>
-            <p style={{ color: '#e50914', fontSize: '0.9rem', fontWeight: '600', marginTop: '0.75rem', minHeight: '1.2em' }}>
+            <p style={{ color: '#b31f2f', fontSize: '0.9rem', fontWeight: '600', marginTop: '0.75rem', minHeight: '1.2em' }}>
               {RATING_LABELS[displayRating] || ''}
             </p>
           </div>
@@ -141,15 +141,15 @@ function LogMovieModal({ movie, onClose, onLogged }) {
             type="submit"
             disabled={loading}
             style={{
-              width: '100%', padding: '0.9rem', backgroundColor: '#e50914', color: 'white',
+              width: '100%', padding: '0.9rem', backgroundColor: '#b31f2f', color: 'white',
               border: 'none', borderRadius: '10px', cursor: loading ? 'default' : 'pointer',
               fontSize: '1rem', fontWeight: '700', letterSpacing: '0.2px',
-              boxShadow: '0 8px 24px rgba(229,9,20,0.35)',
+              boxShadow: '0 8px 24px rgba(179,31,47,0.35)',
               opacity: loading ? 0.7 : 1,
               transition: 'transform 0.15s, box-shadow 0.15s'
             }}
-            onMouseEnter={e => { if (!loading) { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(229,9,20,0.5)' } }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(229,9,20,0.35)' }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.transform = 'scale(1.02)'; e.currentTarget.style.boxShadow = '0 10px 28px rgba(179,31,47,0.5)' } }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(179,31,47,0.35)' }}
           >
             {loading ? 'Logging...' : 'Add to Watched Movies'}
           </button>

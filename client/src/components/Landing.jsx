@@ -138,16 +138,16 @@ function Landing() {
           display: 'inline-flex', alignItems: 'center'
         }}>
           <span style={{
-            color: '#ff3b3b', fontSize: '0.95rem', fontWeight: '600',
+            color: '#b31f2f', fontSize: '0.95rem', fontWeight: '600',
             letterSpacing: '0.5px',
-            textShadow: '0 0 14px rgba(229,9,20,0.85), 0 0 32px rgba(229,9,20,0.4), 0 2px 6px rgba(0,0,0,0.7)'
+            textShadow: '0 0 14px rgba(179,31,47,0.85), 0 0 32px rgba(179,31,47,0.4), 0 2px 6px rgba(0,0,0,0.7)'
           }}>
             {typedPhrase}
             <span style={{
               display: 'inline-block', width: '2px', height: '0.9em',
               marginLeft: '3px', verticalAlign: '-0.1em',
-              backgroundColor: '#ff3b3b',
-              boxShadow: '0 0 8px rgba(229,9,20,0.9)',
+              backgroundColor: '#b31f2f',
+              boxShadow: '0 0 8px rgba(179,31,47,0.9)',
               animation: 'cursorBlink 0.9s step-end infinite'
             }} />
           </span>
@@ -159,7 +159,7 @@ function Landing() {
           lineHeight: '1.1', letterSpacing: '-1px'
         }}>
           Track Every Movie<br />
-          <span style={{ color: '#e50914' }}>You've Ever Loved</span>
+          <span style={{ color: '#b31f2f' }}>You've Ever Loved</span>
         </h1>
 
         <p style={{
@@ -174,14 +174,14 @@ function Landing() {
           <button
             onClick={() => navigate('/register')}
             style={{
-              padding: '1rem 2.5rem', backgroundColor: '#e50914',
+              padding: '1rem 2.5rem', backgroundColor: '#b31f2f',
               color: 'white', border: 'none', borderRadius: '10px',
               cursor: 'pointer', fontSize: '1.1rem', fontWeight: '700',
-              boxShadow: '0 8px 30px rgba(229,9,20,0.4)',
+              boxShadow: '0 8px 30px rgba(179,31,47,0.4)',
               transition: 'transform 0.2s, box-shadow 0.2s'
             }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(229,9,20,0.6)' }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(229,9,20,0.4)' }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; e.currentTarget.style.boxShadow = '0 12px 40px rgba(179,31,47,0.6)' }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 8px 30px rgba(179,31,47,0.4)' }}
           >
             Get Started
           </button>

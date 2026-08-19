@@ -13,8 +13,12 @@ const reviewCommentSchema = new mongoose.Schema({
     },
     comment: {
         type: String,
-        required: true,
+        default: '',
         maxlength: 500
+    },
+    gif_url: {
+        type: String,
+        default: null
     }
 }, { timestamps: true, versionKey: false });
 

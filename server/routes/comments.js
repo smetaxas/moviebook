@@ -20,12 +20,22 @@ router.get('/:watchedMovieId', requireAuth, async (req, res) => {
 // Create comment by watched movie ID
 router.post('/:watchedMovieId', requireAuth, async (req, res) => {
   try {
-    const { comment } = req.body;
+    const { comment, gif_url } = req.body;
+    const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
+
+    if (!trimmedComment && !gif_url) {
+      return res.status(400).json({ message: 'Comment text or a GIF is required' });
+    }
+
+    if (gif_url && !/^https:\/\/media\d*\.giphy\.com\//.test(gif_url)) {
+      return res.status(400).json({ message: 'Invalid GIF URL' });
+    }
 
     const newComment = await ReviewComment.create({
       watched_movie_id: req.params.watchedMovieId,
       commenter_id: req.userId,
-      comment
+      comment: trimmedComment,
+      gif_url: gif_url || null
     });
 
     const populated = await newComment.populate('commenter_id', 'email username profile_photo');
