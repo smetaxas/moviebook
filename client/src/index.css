@@ -39,6 +39,26 @@ img:hover {
   filter: brightness(1.1);
 }
 
+img.emoji {
+  height: 1.2em;
+  width: 1.2em;
+  vertical-align: -0.2em;
+  margin: 0 0.03em;
+}
+
+img.emoji:hover {
+  transform: none;
+  filter: none;
+}
+
+/* Ring avatars: scaling on hover makes the thin gradient ring look
+   unevenly clipped, so these opt out of the generic img zoom and get
+   a brightness-only hover cue instead (no size change, nothing to clip). */
+img.avatar-ring:hover {
+  transform: none;
+  filter: brightness(1.12);
+}
+
 a {
   transition: opacity 0.2s;
   font-family: 'Inter', system-ui, sans-serif;
@@ -54,8 +74,8 @@ input, textarea {
 }
 
 input:focus, textarea:focus {
-  border-color: #e50914 !important;
-  box-shadow: 0 0 0 2px rgba(229, 9, 20, 0.2);
+  border-color: #b31f2f !important;
+  box-shadow: 0 0 0 2px rgba(179,31,47, 0.2);
 }
 
 span[style*="cursor: pointer"] {

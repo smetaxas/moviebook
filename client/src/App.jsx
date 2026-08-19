@@ -9,10 +9,13 @@ import CommunityFeed from './components/Feed/CommunityFeed'
 import UserProfile from './components/Profile/UserProfile'
 import VerifyEmail from './components/Auth/VerifyEmail'
 import Landing from './components/Landing'
+import NotFound from './components/NotFound'
+import EmojiRenderer from './components/UI/EmojiRenderer'
 
 function App() {
   return (
     <BrowserRouter>
+      <EmojiRenderer />
       <Routes>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
@@ -24,6 +27,7 @@ function App() {
         <Route path="/feed" element={<CommunityFeed />} />
         <Route path="/user/:userId" element={<UserProfile />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
   )
