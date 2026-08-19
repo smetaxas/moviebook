@@ -133,15 +133,27 @@ router.get('/genre/:genreId', requireAuth, async (req, res) => {
 // Get movie details from TMDB + OMDb
 router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
   try {
-    const [movieRes, creditsRes, videosRes] = await Promise.all([
+    const [movieRes, creditsRes, videosRes, imagesRes] = await Promise.all([
       fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}?api_key=${process.env.TMDB_API_KEY}&language=en-US`),
       fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/credits?api_key=${process.env.TMDB_API_KEY}`),
-      fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/videos?api_key=${process.env.TMDB_API_KEY}&language=en-US`)
+      fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/videos?api_key=${process.env.TMDB_API_KEY}&language=en-US`),
+      fetch(`https://api.themoviedb.org/3/movie/${req.params.tmdbId}/images?api_key=${process.env.TMDB_API_KEY}&include_image_language=en,null`)
     ]);
-    const [data, credits, videos] = await Promise.all([movieRes.json(), creditsRes.json(), videosRes.json()]);
+    const [data, credits, videos, images] = await Promise.all([movieRes.json(), creditsRes.json(), videosRes.json(), imagesRes.json()]);
 
     const director = credits.crew?.find(member => member.job === 'Director')?.name || null;
     const trailer = videos.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube') || null;
+
+    // Backdrops - up to 8, best-rated first, deduped with the primary one on top
+    const backdrops = [
+      data.backdrop_path,
+      ...(images.backdrops || [])
+        .sort((a, b) => b.vote_average - a.vote_average)
+        .map(b => b.file_path)
+    ]
+      .filter((path, i, arr) => path && arr.indexOf(path) === i)
+      .slice(0, 8)
+      .map(path => `https://image.tmdb.org/t/p/w1280${path}`)
 
     // Cast - top 10
     const cast = credits.cast?.slice(0, 10).map(member => ({
@@ -178,6 +190,7 @@ router.get('/tmdb/:tmdbId', requireAuth, async (req, res) => {
       genres: data.genres?.map(g => g.name) || [],
       poster_url: data.poster_path ? `https://image.tmdb.org/t/p/w500${data.poster_path}` : '',
       backdrop_url: data.backdrop_path ? `https://image.tmdb.org/t/p/w1280${data.backdrop_path}` : '',
+      backdrops,
       runtime: data.runtime,
       trailer_key: trailer ? trailer.key : null,
       cast,
