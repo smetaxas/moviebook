@@ -45,15 +45,19 @@ app.use(cors({
 }))
 
 // Rate limiting
+// Limits are relaxed outside production so local dev/testing doesn't get
+// blocked by normal usage; production keeps the strict security posture.
+const isProd = process.env.NODE_ENV === 'production'
+
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: isProd ? 100 : 2000,
   message: { message: 'Too many requests, please try again later.' }
 })
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: isProd ? 10 : 200,
   message: { message: 'Too many login attempts, please try again later.' }
 })
 
