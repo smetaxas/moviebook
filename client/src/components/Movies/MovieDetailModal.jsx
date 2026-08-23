@@ -21,7 +21,10 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
   const location = useLocation()
   const [watchedMovie, setWatchedMovie] = useState(null)
   const [tmdbMovie, setTmdbMovie] = useState(null)
+  const [providers, setProviders] = useState(null)
   const [comments, setComments] = useState([])
+  const [hasMoreComments, setHasMoreComments] = useState(false)
+  const [loadingMoreComments, setLoadingMoreComments] = useState(false)
   const [newComment, setNewComment] = useState('')
   const [commentFocused, setCommentFocused] = useState(false)
   const [showGiphy, setShowGiphy] = useState(false)
@@ -34,11 +37,28 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
   const [ratingUpdated, setRatingUpdated] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [closeHover, setCloseHover] = useState(false)
+  const [communityHover, setCommunityHover] = useState(false)
+  const [whereHover, setWhereHover] = useState(false)
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
 
   const goToUser = (userId) => {
     navigate(`/user/${userId}`, { state: { backTo: location.pathname, reopenWatchedMovie: watchedMovieId } })
+  }
+
+  // "Comments" here are just this log's own thread — the real comment section,
+  // with every log from the community, lives in the feed. Send them there.
+  const goToCommunityComments = () => {
+    navigate('/feed', {
+      state: {
+        reopenMovie: {
+          tmdb_id: watchedMovie.movie_id,
+          title: tmdbMovie?.title || watchedMovie.movie_title,
+          year: tmdbMovie?.year || watchedMovie.movie_year,
+          poster_url: tmdbMovie?.poster_url || watchedMovie.movie_poster
+        }
+      }
+    })
   }
 
   useEffect(() => {
@@ -53,10 +73,15 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
       ])
       setWatchedMovie(watchedRes.data)
       setRating(watchedRes.data.rating)
-      setComments(commentsRes.data)
+      setComments(commentsRes.data.comments)
+      setHasMoreComments(commentsRes.data.hasMore)
 
-      const tmdbRes = await api.get(`/movies/tmdb/${watchedRes.data.movie_id}`)
+      const [tmdbRes, providersRes] = await Promise.all([
+        api.get(`/movies/tmdb/${watchedRes.data.movie_id}`),
+        api.get(`/movies/tmdb/${watchedRes.data.movie_id}/providers`)
+      ])
       setTmdbMovie(tmdbRes.data)
+      setProviders(providersRes.data.providers)
     } catch (err) {
       setError('Failed to load movie details')
     } finally {
@@ -99,6 +124,37 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
     }
   }
 
+  const handleLoadMoreComments = async () => {
+    if (comments.length === 0) return
+    setLoadingMoreComments(true)
+    try {
+      const oldest = comments[comments.length - 1]
+      const res = await api.get(`/comments/${watchedMovieId}`, { params: { before: oldest.createdAt, beforeId: oldest._id } })
+      setComments(prev => [...prev, ...res.data.comments])
+      setHasMoreComments(res.data.hasMore)
+    } catch (err) {
+      setError('Failed to load more comments')
+    } finally {
+      setLoadingMoreComments(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId) => {
+    try {
+      const res = await api.delete(`/comments/${commentId}`)
+      if (res.data.deletedLog) {
+        // That was the last comment on this unrated log — the log itself
+        // just got deleted server-side too, so there's nothing left to show.
+        onDeleted && onDeleted()
+        onClose()
+        return
+      }
+      setComments(prev => prev.filter(c => c._id !== commentId))
+    } catch (err) {
+      setError('Failed to delete comment')
+    }
+  }
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-GB', {
       day: 'numeric', month: 'long', year: 'numeric'
@@ -138,8 +194,8 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
 
         <div style={{
           backgroundColor: '#1a1a1a', borderRadius: '16px',
-          width: '100%', maxWidth: '900px',
-          maxHeight: '90vh', overflowY: 'auto',
+          width: '100%', maxWidth: '980px',
+          maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden',
           position: 'relative', boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
           animation: 'movieModalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}>
@@ -304,14 +360,40 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                       </div>
                     )}
 
+                    {/* Where to Watch — one click, straight through. Uses the JustWatch/TMDB
+                        link when we have regional availability data, otherwise falls back to
+                        a Google search — but either way it's a single <a>, not a button that
+                        opens something else you then have to click again. */}
                     <div style={{ marginBottom: '1.5rem' }}>
                       <a
-                        href={`https://www.google.com/search?q=where+to+watch+${encodeURIComponent(watchedMovie.movie_title)}`}
+                        href={
+                          providers && (providers.flatrate?.length || providers.rent?.length || providers.buy?.length)
+                            ? providers.link
+                            : `https://www.google.com/search?q=where+to+watch+${encodeURIComponent(watchedMovie.movie_title)}`
+                        }
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', padding: '0.6rem 1.25rem', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '6px', color: 'white', textDecoration: 'none', fontWeight: '600', fontSize: '0.9rem' }}
+                        onMouseEnter={() => setWhereHover(true)}
+                        onMouseLeave={() => setWhereHover(false)}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
+                          padding: '0.6rem 1.25rem 0.6rem 1rem',
+                          backgroundColor: whereHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
+                          border: '1px solid ' + (whereHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
+                          borderRadius: '6px', color: 'white', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
+                          boxShadow: whereHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
+                          transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
+                        }}
                       >
-                        <Emoji>📺</Emoji> Where to Watch
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          width: '20px', height: '20px', borderRadius: '50%',
+                          backgroundColor: whereHover ? 'white' : '#b31f2f',
+                          fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
+                        }}>
+                          📺
+                        </span>
+                        Where to Watch
                       </a>
                     </div>
                   </>
@@ -374,18 +456,46 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                         </div>
                       </div>
                     </>
-                  ) : (
+                  ) : watchedMovie.rating ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                       <StarRating rating={watchedMovie.rating} size={20} />
                       <span style={{ color: 'white', fontWeight: 700, fontSize: '1rem' }}>{watchedMovie.rating}/5</span>
                     </div>
+                  ) : (
+                    <p style={{ color: '#888', fontSize: '0.85rem', margin: 0, fontStyle: 'italic' }}>Not rated yet</p>
                   )}
                   <p style={{ color: '#888', fontSize: '0.78rem', margin: '0.85rem 0 0 0' }}>Watched {formatDate(watchedMovie.watchedAt)}</p>
                 </div>
 
                 <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: '1.5rem' }} />
 
-                <h3 style={{ color: 'white', margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 800 }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0 0 1rem 0' }}>
+                  <h3 style={{ color: 'white', margin: 0, fontSize: '1rem', fontWeight: 800 }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
+                  <button
+                    onClick={goToCommunityComments}
+                    onMouseEnter={() => setCommunityHover(true)}
+                    onMouseLeave={() => setCommunityHover(false)}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+                      padding: '0.4rem 0.9rem 0.4rem 0.4rem',
+                      backgroundColor: communityHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
+                      border: '1px solid ' + (communityHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
+                      borderRadius: '999px', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem',
+                      boxShadow: communityHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
+                      transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
+                    }}
+                  >
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: '20px', height: '20px', borderRadius: '50%',
+                      backgroundColor: communityHover ? 'white' : '#b31f2f',
+                      fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
+                    }}>
+                      🌍
+                    </span>
+                    Community Comments
+                  </button>
+                </div>
 
                 {selectedGif && (
                   <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
@@ -469,7 +579,6 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                       <Avatar
                         user={comment.commenter_id}
                         size={32}
-                        ringColor="#1a1a1a"
                         onClick={comment.commenter_id?._id !== currentUserId ? () => goToUser(comment.commenter_id?._id) : undefined}
                       />
                       <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
@@ -481,6 +590,22 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                             {comment.commenter_id?.username || comment.commenter_id?.email}
                           </span>
                           <span style={{ color: '#555', fontSize: '0.72rem' }}>{formatDate(comment.createdAt)}</span>
+                          {comment.commenter_id?._id === currentUserId && (
+                            <button
+                              onClick={() => handleDeleteComment(comment._id)}
+                              aria-label="Delete comment"
+                              title="Delete comment"
+                              style={{
+                                marginLeft: 'auto', background: 'none', border: 'none', color: '#666',
+                                fontSize: '0.85rem', cursor: 'pointer', padding: '0.15rem 0.3rem', lineHeight: 1,
+                                transition: 'color 0.15s'
+                              }}
+                              onMouseEnter={e => { e.currentTarget.style.color = '#dc3c4f' }}
+                              onMouseLeave={e => { e.currentTarget.style.color = '#666' }}
+                            >
+                              🗑️
+                            </button>
+                          )}
                         </div>
                         {comment.comment && (
                           <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem', lineHeight: 1.4 }}>{comment.comment}</p>
@@ -496,6 +621,18 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                     </div>
                   ))}
                   {comments.length === 0 && <p style={{ color: '#555', fontSize: '0.85rem' }}>No comments yet — say something!</p>}
+                  {hasMoreComments && (
+                    <button
+                      onClick={handleLoadMoreComments}
+                      disabled={loadingMoreComments}
+                      style={{
+                        background: 'none', border: 'none', color: '#999', fontSize: '0.82rem', fontWeight: 600,
+                        cursor: loadingMoreComments ? 'default' : 'pointer', padding: '0.3rem 0', textAlign: 'center'
+                      }}
+                    >
+                      {loadingMoreComments ? 'Loading…' : 'Load more comments'}
+                    </button>
+                  )}
                 </div>
               </div>
             </>

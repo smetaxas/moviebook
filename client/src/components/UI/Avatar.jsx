@@ -1,9 +1,7 @@
 import { useState } from 'react'
 
-// Shared avatar: shows the user's photo in a gradient ring, or a colored
-// initial circle when there's no photo. `ringColor` should match whatever
-// background the avatar sits on (page bg vs. a modal panel) so the ring
-// border blends in instead of showing a visible seam.
+// Shared avatar: shows the user's photo as a plain circle with a soft
+// shadow, or a colored initial circle when there's no photo.
 //
 // `expandOnClick`: when true and a photo exists, clicking opens a full-size
 // lightbox instead of firing `onClick` directly (used where `onClick`
@@ -11,9 +9,8 @@ import { useState } from 'react'
 // button so that's still one click away). Falls back to `onClick` when
 // there's no photo to show, or when `expandOnClick` is off (e.g. the navbar
 // avatar, where the click opens the account menu instead).
-function Avatar({ user, size = 40, onClick, ringColor = '#0a0a0a', expandOnClick = false }) {
+function Avatar({ user, size = 40, onClick, expandOnClick = false }) {
   const [showFull, setShowFull] = useState(false)
-  const ringWidth = size >= 60 ? 3 : 2
   const initial = (user?.username || user?.email || '?')[0].toUpperCase()
   const hasPhoto = !!user?.profile_photo
   const canExpand = expandOnClick && hasPhoto
@@ -32,8 +29,8 @@ function Avatar({ user, size = 40, onClick, ringColor = '#0a0a0a', expandOnClick
         onClick={handleClick}
         style={{
           cursor: (onClick || canExpand) ? 'pointer' : 'default', flexShrink: 0,
-          borderRadius: '50%', padding: `${ringWidth}px`, overflow: 'hidden',
-          background: 'linear-gradient(135deg, #dc3c4f, #b31f2f)'
+          borderRadius: '50%', overflow: 'hidden',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.35)'
         }}
       >
         {hasPhoto ? (
@@ -41,13 +38,12 @@ function Avatar({ user, size = 40, onClick, ringColor = '#0a0a0a', expandOnClick
             className="avatar-ring"
             src={user.profile_photo}
             alt=""
-            style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block', border: `${ringWidth}px solid ${ringColor}` }}
+            style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
           />
         ) : (
           <div style={{
             width: size, height: size, borderRadius: '50%',
             background: 'linear-gradient(135deg, #dc3c4f, #b31f2f)',
-            border: `${ringWidth}px solid ${ringColor}`,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontWeight: 'bold', fontSize: size * 0.4, lineHeight: 1, color: 'white'
           }}>

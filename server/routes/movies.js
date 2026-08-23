@@ -78,6 +78,102 @@ router.get('/upcoming', requireAuth, async (req, res) => {
   }
 });
 
+// Award-winning movies come from curated TMDB lists — the public API has
+// no dedicated awards endpoint (only the TMDB website does). Coverage is
+// uneven because not every category has a reliable, well-populated list.
+// Categories with no usable community list (e.g. Best Casting, which is
+// too new/niche for one to exist) use a hand-verified `movieIds` array
+// instead — each winner looked up and confirmed against Wikipedia/BAFTA's
+// own records, so it's more accurate than trusting a random user list.
+const AWARDS = {
+  oscars: {
+    name: 'Academy Awards',
+    categories: {
+      picture: { listId: 7237, label: 'Best Picture' },
+      actor: { listId: 3729, label: 'Best Actor' },
+      actress: { listId: 3730, label: 'Best Actress' },
+      // Best Casting is a brand-new category (introduced for the 98th
+      // Academy Awards, March 2026) — only one winner exists so far.
+      casting: { movieIds: [1054867], label: 'Best Casting' } // One Battle After Another (2026)
+    }
+  },
+  globes: {
+    name: 'Golden Globes',
+    categories: {
+      picture: { listId: 2469, label: 'Best Picture' }
+    }
+  },
+  bafta: {
+    name: 'BAFTA',
+    categories: {
+      picture: { listId: 3681, label: 'Best Film' },
+      // BAFTA Best Casting winners, 2019-2025 (73rd-79th ceremonies),
+      // verified individually against Wikipedia's award history.
+      casting: {
+        movieIds: [475557, 575773, 511809, 614934, 840430, 1064213, 1317149],
+        label: 'Best Casting'
+      }
+    }
+  }
+};
+
+// Get award-winning movies from a curated TMDB list, or a hand-verified set of movie IDs
+router.get('/awarded', requireAuth, async (req, res) => {
+  try {
+    const award = AWARDS[req.query.award] ? req.query.award : 'oscars';
+    const { name, categories } = AWARDS[award];
+    const category = categories[req.query.category] ? req.query.category : Object.keys(categories)[0];
+    const { listId, movieIds, label: categoryLabel } = categories[category];
+
+    let allItems;
+    if (movieIds) {
+      allItems = await Promise.all(
+        movieIds.map(id =>
+          fetch(`https://api.themoviedb.org/3/movie/${id}?api_key=${process.env.TMDB_API_KEY}&language=en-US`).then(r => r.json())
+        )
+      );
+    } else {
+      const baseUrl = `https://api.themoviedb.org/3/list/${listId}?api_key=${process.env.TMDB_API_KEY}&language=en-US`;
+      const firstRes = await fetch(`${baseUrl}&page=1`).then(r => r.json());
+      const totalPages = Math.min(firstRes.total_pages || 1, 10);
+
+      const pagePromises = Array.from({ length: totalPages - 1 }, (_, i) =>
+        fetch(`${baseUrl}&page=${i + 2}`).then(r => r.json())
+      );
+      const restPages = await Promise.all(pagePromises);
+      allItems = [firstRes, ...restPages].flatMap(page => page.items || []);
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    const movies = allItems
+      .filter(movie => movie.release_date && movie.release_date <= today)
+      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+      .map(movie => ({
+        tmdb_id: movie.id,
+        title: movie.title,
+        year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        description: movie.overview,
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '',
+        rating: movie.vote_average ? Math.round(movie.vote_average * 10) / 10 : null
+      }));
+    const availableCategories = Object.entries(categories).map(([key, c]) => ({ value: key, label: c.label }));
+
+    res.json({ award, name, category, categoryLabel, categories: availableCategories, movies });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Get all award shows and their available categories
+router.get('/awards-meta', requireAuth, (req, res) => {
+  const meta = Object.entries(AWARDS).map(([key, a]) => ({
+    value: key,
+    name: a.name,
+    categories: Object.entries(a.categories).map(([ckey, c]) => ({ value: ckey, label: c.label }))
+  }));
+  res.json(meta);
+});
+
 // Get all genres from TMDB
 router.get('/genres', requireAuth, async (req, res) => {
   try {

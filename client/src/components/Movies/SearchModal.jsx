@@ -4,7 +4,7 @@ import LogMovieModal from './LogMovieModal'
 import TMDBMovieModal from './TMDBMovieModal'
 import Emoji from '../UI/Emoji'
 
-function SearchModal({ onClose, onMovieLogged, onWatchlistChange }) {
+function SearchModal({ onClose, onMovieLogged, onWatchlistChange, onFavoriteChange }) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -170,6 +170,7 @@ function SearchModal({ onClose, onMovieLogged, onWatchlistChange }) {
             setMovieToLog(movie)
           }}
           onWatchlistChange={onWatchlistChange}
+          onFavoriteChange={onFavoriteChange}
         />
       )}
 

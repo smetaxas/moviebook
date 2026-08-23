@@ -50,10 +50,32 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
         }}
       >
         <Avatar user={user} size={32} onClick={() => setOpen(!open)} />
+        {/* Grid-template-columns animates 0fr->1fr, which — unlike width — can
+            transition smoothly to/from an intrinsic ("auto") size. Anchored to
+            the trigger's right edge, growing this reveals the username by
+            expanding the whole pill leftward. */}
+        <div style={{
+          display: 'grid', gridTemplateColumns: open ? '1fr' : '0fr',
+          transition: 'grid-template-columns 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <span style={{
+            overflow: 'hidden', whiteSpace: 'nowrap', color: 'white', fontWeight: 600, fontSize: '0.85rem',
+            opacity: open ? 1 : 0, transition: 'opacity 0.18s ease ' + (open ? '0.08s' : '0s')
+          }}>
+            {user.username}
+          </span>
+        </div>
         <span style={{
-          color: '#aaa', fontSize: '0.75rem', display: 'inline-block',
-          transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s'
-        }}>▾</span>
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          width: '20px', height: '20px', borderRadius: '50%',
+          backgroundColor: triggerHover || open ? 'rgba(255,255,255,0.12)' : 'transparent',
+          transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
+          transition: 'transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.15s'
+        }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2.5 4.5L6 8L9.5 4.5" stroke={open ? 'white' : '#ccc'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </div>
 
       <div
@@ -71,9 +93,9 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
         zIndex: 201, boxShadow: '0 16px 40px rgba(0,0,0,0.55)',
         transformOrigin: 'top right',
         opacity: open ? 1 : 0,
-        transform: open ? 'translateY(0) scale(1)' : 'translateY(-6px) scale(0.95)',
+        transform: open ? 'translateY(0) scale(1)' : 'translateY(-10px) scale(0.95)',
         pointerEvents: open ? 'auto' : 'none',
-        transition: 'opacity 0.18s cubic-bezier(0.16, 1, 0.3, 1), transform 0.18s cubic-bezier(0.16, 1, 0.3, 1)'
+        transition: 'opacity 0.22s cubic-bezier(0.16, 1, 0.3, 1), transform 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
       }}>
         <div style={{
           position: 'absolute', top: '-50px', right: '-50px', width: '140px', height: '140px',
@@ -81,7 +103,7 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
         }} />
 
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0.6rem 0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', marginBottom: '0.4rem' }}>
-          <Avatar user={user} size={38} ringColor="#1a1a1a" />
+          <Avatar user={user} size={38} />
           <div style={{ minWidth: 0 }}>
             <p style={{ color: 'white', fontWeight: 700, margin: 0, fontSize: '0.92rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.username}</p>
             <p style={{ color: '#888', fontSize: '0.75rem', margin: '0.15rem 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</p>

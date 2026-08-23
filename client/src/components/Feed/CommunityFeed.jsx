@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Navbar from '../UI/Navbar'
 import NavButton from '../UI/NavButton'
 import Avatar from '../UI/Avatar'
+import GiphyPicker from '../UI/GiphyPicker'
+import TMDBMovieModal from '../Movies/TMDBMovieModal'
+import LogMovieModal from '../Movies/LogMovieModal'
 
 function CommunityFeed() {
   const [query, setQuery] = useState('')
@@ -14,11 +17,27 @@ function CommunityFeed() {
   const [loading, setLoading] = useState(false)
   const [searching, setSearching] = useState(false)
   const [newComments, setNewComments] = useState({})
+  const [selectedGifs, setSelectedGifs] = useState({})
+  const [showGiphyFor, setShowGiphyFor] = useState(null)
   const [inputFocused, setInputFocused] = useState(false)
+  const [newMovieComment, setNewMovieComment] = useState('')
+  const [movieCommentFocused, setMovieCommentFocused] = useState(false)
+  const [showMovieGiphy, setShowMovieGiphy] = useState(false)
+  const [selectedMovieGif, setSelectedMovieGif] = useState(null)
+  const [movieGifButtonHover, setMovieGifButtonHover] = useState(false)
+  const [loggingComment, setLoggingComment] = useState(false)
+  const [showMovieDetails, setShowMovieDetails] = useState(false)
+  const [movieToLog, setMovieToLog] = useState(null)
+  const [detailsHover, setDetailsHover] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
+  const commentsRef = useRef(null)
+
+  const scrollToComments = () => {
+    commentsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   useEffect(() => {
     if (!query.trim()) {
@@ -57,23 +76,27 @@ function CommunityFeed() {
     try {
       await fetchWatchedForMovie(movie.tmdb_id)
     } catch (err) {
-      console.error('Failed to load watched movies')
+      console.error('Failed to load movie data')
     } finally {
       setLoading(false)
     }
   }
 
-  // Arriving back from a user's profile (e.g. clicked a commenter's name/photo) —
-  // reopen the movie's comment thread we came from instead of landing on a blank feed.
+  // Arriving back from a user's profile (e.g. clicked a commenter's name/photo),
+  // or from a "Jump to Comments" button on a movie's detail modal elsewhere in
+  // the app — reopen that movie's comment thread and scroll straight to it
+  // instead of landing on a blank feed.
   useEffect(() => {
     if (location.state?.reopenMovie) {
-      handleSelectMovie(location.state.reopenMovie)
+      handleSelectMovie(location.state.reopenMovie).then(() => {
+        requestAnimationFrame(() => scrollToComments())
+      })
       navigate(location.pathname, { replace: true, state: null })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Poll for new ratings/logs (from any user, including yourself) while a movie is open
+  // Poll for new ratings/logs/comments (from any user, including yourself) while a movie is open
   useEffect(() => {
     if (!selectedMovie) return
     const interval = setInterval(() => {
@@ -84,11 +107,37 @@ function CommunityFeed() {
     return () => clearInterval(interval)
   }, [selectedMovie])
 
+  // Commenting on a movie you haven't logged yet creates (or reuses) your own
+  // unrated log and attaches the comment to it — there's no separate,
+  // movie-wide discussion thread anymore.
+  const handleAddMovieComment = async (e) => {
+    e.preventDefault()
+    if ((!newMovieComment.trim() && !selectedMovieGif) || !selectedMovie) return
+    setLoggingComment(true)
+    try {
+      await api.post(`/watched/comment/${selectedMovie.tmdb_id}`, {
+        comment: newMovieComment,
+        gif_url: selectedMovieGif,
+        movie_title: selectedMovie.title,
+        movie_poster: selectedMovie.poster_url,
+        movie_year: selectedMovie.year
+      })
+      await fetchWatchedForMovie(selectedMovie.tmdb_id)
+      setNewMovieComment('')
+      setSelectedMovieGif(null)
+    } catch (err) {
+      console.error('Failed to add movie comment')
+    } finally {
+      setLoggingComment(false)
+    }
+  }
+
   const handleAddComment = async (watchedMovieId) => {
     const comment = newComments[watchedMovieId]
-    if (!comment?.trim()) return
+    const gif_url = selectedGifs[watchedMovieId]
+    if (!comment?.trim() && !gif_url) return
     try {
-      const res = await api.post(`/comments/${watchedMovieId}`, { comment })
+      const res = await api.post(`/comments/${watchedMovieId}`, { comment, gif_url })
       setWatchedMovies(prev => prev.map(w => {
         if (w._id === watchedMovieId) {
           return { ...w, comments: [res.data, ...w.comments] }
@@ -96,8 +145,29 @@ function CommunityFeed() {
         return w
       }))
       setNewComments(prev => ({ ...prev, [watchedMovieId]: '' }))
+      setSelectedGifs(prev => ({ ...prev, [watchedMovieId]: null }))
     } catch (err) {
       console.error('Failed to add comment')
+    }
+  }
+
+  const handleDeleteComment = async (watchedMovieId, commentId) => {
+    try {
+      const res = await api.delete(`/comments/${commentId}`)
+      if (res.data.deletedLog) {
+        // That was the last comment on an unrated log — the log itself just
+        // got deleted server-side too, so drop its whole card from the feed.
+        setWatchedMovies(prev => prev.filter(w => w._id !== watchedMovieId))
+        return
+      }
+      setWatchedMovies(prev => prev.map(w => {
+        if (w._id === watchedMovieId) {
+          return { ...w, comments: w.comments.filter(c => c._id !== commentId) }
+        }
+        return w
+      }))
+    } catch (err) {
+      console.error('Failed to delete comment')
     }
   }
 
@@ -115,9 +185,11 @@ function CommunityFeed() {
     </span>
   )
 
-  const avgRating = watchedMovies.length
-    ? watchedMovies.reduce((sum, w) => sum + w.rating, 0) / watchedMovies.length
+  const ratedMovies = watchedMovies.filter(w => w.rating)
+  const avgRating = ratedMovies.length
+    ? ratedMovies.reduce((sum, w) => sum + w.rating, 0) / ratedMovies.length
     : 0
+  const hasOwnLog = watchedMovies.some(w => w.user_id?._id === currentUserId)
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
@@ -245,17 +317,45 @@ function CommunityFeed() {
                 <p style={{ color: '#999', margin: 0, fontSize: '0.85rem' }}>💬 {watchedMovies.length} {watchedMovies.length === 1 ? 'log' : 'logs'} from the community</p>
               </div>
 
-              {watchedMovies.length > 0 && (
-                <div style={{
-                  textAlign: 'center', padding: '0.65rem 1.1rem',
-                  backgroundColor: 'rgba(179,31,47,0.12)', border: '1px solid rgba(179,31,47,0.35)',
-                  borderRadius: '14px', flexShrink: 0
-                }}>
-                  <p style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: '#dc3c4f', lineHeight: 1 }}>{avgRating.toFixed(1)}</p>
-                  <div style={{ margin: '0.3rem 0 0.15rem 0' }}><StarRating rating={avgRating} size={11} /></div>
-                  <p style={{ color: '#888', fontSize: '0.65rem', margin: 0, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}>avg rating</p>
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: '0.6rem', flexShrink: 0 }}>
+                {ratedMovies.length > 0 && (
+                  <div style={{
+                    textAlign: 'center', padding: '0.65rem 1.1rem',
+                    backgroundColor: 'rgba(179,31,47,0.12)', border: '1px solid rgba(179,31,47,0.35)',
+                    borderRadius: '14px'
+                  }}>
+                    <p style={{ fontSize: '1.4rem', fontWeight: 800, margin: 0, color: '#dc3c4f', lineHeight: 1 }}>{avgRating.toFixed(1)}</p>
+                    <div style={{ margin: '0.3rem 0 0.15rem 0' }}><StarRating rating={avgRating} size={11} /></div>
+                    <p style={{ color: '#888', fontSize: '0.65rem', margin: 0, whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em' }}>avg rating</p>
+                  </div>
+                )}
+
+                {/* Head back to the movie's own details view — styled as a matching
+                    tile next to the rating one, rather than a standalone pill button. */}
+                <button
+                  onClick={() => setShowMovieDetails(true)}
+                  onMouseEnter={() => setDetailsHover(true)}
+                  onMouseLeave={() => setDetailsHover(false)}
+                  style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    padding: '0.65rem 1.1rem',
+                    backgroundColor: detailsHover ? 'rgba(179,31,47,0.2)' : 'rgba(255,255,255,0.05)',
+                    border: '1px solid ' + (detailsHover ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.12)'),
+                    borderRadius: '14px', cursor: 'pointer',
+                    transform: detailsHover ? 'translateY(-2px)' : 'translateY(0)',
+                    transition: 'background-color 0.15s, border-color 0.15s, transform 0.15s'
+                  }}
+                >
+                  <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>🎬</span>
+                  <p style={{
+                    color: detailsHover ? '#dc3c4f' : '#999', fontSize: '0.65rem', fontWeight: 700,
+                    margin: '0.3rem 0 0 0', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.04em',
+                    transition: 'color 0.15s'
+                  }}>
+                    Details
+                  </p>
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -265,6 +365,97 @@ function CommunityFeed() {
             <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0', animation: 'pulse 1.4s ease-in-out infinite' }}>🎬</p>
             <p style={{ color: '#888', margin: 0, fontSize: '0.9rem' }}>Loading community logs...</p>
             <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+          </div>
+        )}
+
+        <div ref={commentsRef}>
+
+        {/* Log this movie yourself, via a comment — there's no comment without a log:
+            posting here creates your own (unrated) log and attaches the comment to it.
+            Hidden once you already have a log for this movie; add more comments there instead. */}
+        {!loading && selectedMovie && !hasOwnLog && (
+          <div style={{
+            backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: '16px', padding: '1.1rem 1.5rem', marginBottom: '1.25rem'
+          }}>
+            <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1rem', fontWeight: 800 }}>💬 Log this movie</h3>
+            <p style={{ color: '#888', fontSize: '0.8rem', margin: '0 0 1rem 0' }}>Add a comment to log it — you can rate it later from your profile.</p>
+
+            {selectedMovieGif && (
+              <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
+                <img src={selectedMovieGif} alt="Selected GIF" style={{ maxHeight: '120px', borderRadius: '10px', display: 'block' }} />
+                <button
+                  type="button"
+                  onClick={() => setSelectedMovieGif(null)}
+                  aria-label="Remove GIF"
+                  style={{
+                    position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px',
+                    borderRadius: '50%', backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.2)',
+                    color: 'white', fontSize: '0.75rem', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <form onSubmit={handleAddMovieComment} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.1rem' }}>
+              <input
+                type="text"
+                value={newMovieComment}
+                onChange={(e) => setNewMovieComment(e.target.value)}
+                onFocus={() => setMovieCommentFocused(true)}
+                onBlur={() => setMovieCommentFocused(false)}
+                placeholder="Add a comment..."
+                maxLength={500}
+                style={{
+                  flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px',
+                  border: '1px solid ' + (movieCommentFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
+                  backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem',
+                  boxShadow: movieCommentFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
+                  transition: 'border-color 0.15s, box-shadow 0.15s'
+                }}
+              />
+
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMovieGiphy(v => !v)}
+                  onMouseEnter={() => setMovieGifButtonHover(true)}
+                  onMouseLeave={() => setMovieGifButtonHover(false)}
+                  aria-label="Add a GIF"
+                  style={{
+                    padding: '0.6rem 0.9rem',
+                    backgroundColor: showMovieGiphy || movieGifButtonHover ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
+                    color: 'white',
+                    border: '1px solid ' + (showMovieGiphy ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
+                    borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem',
+                    transition: 'background-color 0.15s, border-color 0.15s'
+                  }}
+                >
+                  GIF
+                </button>
+                {showMovieGiphy && (
+                  <GiphyPicker
+                    onSelect={(url) => { setSelectedMovieGif(url); setShowMovieGiphy(false) }}
+                    onClose={() => setShowMovieGiphy(false)}
+                  />
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={(!newMovieComment.trim() && !selectedMovieGif) || loggingComment}
+                style={{
+                  padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
+                  borderRadius: '999px', cursor: (newMovieComment.trim() || selectedMovieGif) && !loggingComment ? 'pointer' : 'default', fontWeight: '700', fontSize: '0.85rem',
+                  opacity: (newMovieComment.trim() || selectedMovieGif) && !loggingComment ? 1 : 0.45, transition: 'opacity 0.15s'
+                }}
+              >
+                {loggingComment ? 'Posting…' : 'Post'}
+              </button>
+            </form>
           </div>
         )}
 
@@ -284,7 +475,7 @@ function CommunityFeed() {
                 key={watched._id}
                 style={{
                   backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '16px', overflow: 'hidden', transition: 'border-color 0.2s, transform 0.2s'
+                  borderRadius: '16px', transition: 'border-color 0.2s, transform 0.2s'
                 }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)' }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
@@ -308,7 +499,7 @@ function CommunityFeed() {
                       )}
                     </p>
                     <p style={{ color: '#888', fontSize: '0.8rem', margin: '0.2rem 0 0 0', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <StarRating rating={watched.rating} /> <span style={{ color: '#555' }}>· {formatDate(watched.watchedAt)}</span>
+                      {watched.rating ? <StarRating rating={watched.rating} /> : <span style={{ color: '#666', fontStyle: 'italic' }}>Not rated</span>} <span style={{ color: '#555' }}>· {formatDate(watched.watchedAt)}</span>
                     </p>
                   </div>
                 </div>
@@ -333,8 +524,33 @@ function CommunityFeed() {
                                 {comment.commenter_id?.username || comment.commenter_id?.email}
                               </span>
                               <span style={{ color: '#555', fontSize: '0.72rem' }}>{formatDate(comment.createdAt)}</span>
+                              {comment.commenter_id?._id === currentUserId && (
+                                <button
+                                  onClick={() => handleDeleteComment(watched._id, comment._id)}
+                                  aria-label="Delete comment"
+                                  title="Delete comment"
+                                  style={{
+                                    marginLeft: 'auto', background: 'none', border: 'none', color: '#666',
+                                    fontSize: '0.85rem', cursor: 'pointer', padding: '0.15rem 0.3rem', lineHeight: 1,
+                                    transition: 'color 0.15s'
+                                  }}
+                                  onMouseEnter={e => { e.currentTarget.style.color = '#dc3c4f' }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#666' }}
+                                >
+                                  🗑️
+                                </button>
+                              )}
                             </div>
-                            <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem', lineHeight: 1.4 }}>{comment.comment}</p>
+                            {comment.comment && (
+                              <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem', lineHeight: 1.4 }}>{comment.comment}</p>
+                            )}
+                            {comment.gif_url && (
+                              <img
+                                src={comment.gif_url}
+                                alt="GIF"
+                                style={{ maxHeight: '150px', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
+                              />
+                            )}
                           </div>
                         </div>
                       ))}
@@ -345,41 +561,106 @@ function CommunityFeed() {
 
                   {/* Comment Input */}
                   {!isOwn && (
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <input
-                        type="text"
-                        value={newComments[watched._id] || ''}
-                        onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddComment(watched._id)}
-                        placeholder="Add a comment..."
-                        maxLength={500}
-                        style={{ flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem' }}
-                        onFocus={e => { e.target.style.borderColor = '#b31f2f'; e.target.style.boxShadow = '0 0 0 3px rgba(179,31,47,0.18)' }}
-                        onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none' }}
-                      />
-                      <button
-                        onClick={() => handleAddComment(watched._id)}
-                        disabled={!newComments[watched._id]?.trim()}
-                        style={{
-                          padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
-                          borderRadius: '999px', cursor: newComments[watched._id]?.trim() ? 'pointer' : 'default',
-                          fontWeight: '700', fontSize: '0.85rem',
-                          opacity: newComments[watched._id]?.trim() ? 1 : 0.45,
-                          transition: 'opacity 0.15s, background-color 0.15s'
-                        }}
-                      >
-                        Post
-                      </button>
-                    </div>
+                    <>
+                      {selectedGifs[watched._id] && (
+                        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
+                          <img src={selectedGifs[watched._id]} alt="Selected GIF" style={{ maxHeight: '120px', borderRadius: '10px', display: 'block' }} />
+                          <button
+                            type="button"
+                            onClick={() => setSelectedGifs(prev => ({ ...prev, [watched._id]: null }))}
+                            aria-label="Remove GIF"
+                            style={{
+                              position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px',
+                              borderRadius: '50%', backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.2)',
+                              color: 'white', fontSize: '0.75rem', cursor: 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
+                            }}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input
+                          type="text"
+                          value={newComments[watched._id] || ''}
+                          onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
+                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment(watched._id)}
+                          placeholder="Add a comment..."
+                          maxLength={500}
+                          style={{ flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem' }}
+                          onFocus={e => { e.target.style.borderColor = '#b31f2f'; e.target.style.boxShadow = '0 0 0 3px rgba(179,31,47,0.18)' }}
+                          onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none' }}
+                        />
+
+                        <div style={{ position: 'relative' }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowGiphyFor(showGiphyFor === watched._id ? null : watched._id)}
+                            aria-label="Add a GIF"
+                            style={{
+                              padding: '0.6rem 0.9rem',
+                              backgroundColor: showGiphyFor === watched._id ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
+                              color: 'white',
+                              border: '1px solid ' + (showGiphyFor === watched._id ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
+                              borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem',
+                              transition: 'background-color 0.15s, border-color 0.15s'
+                            }}
+                          >
+                            GIF
+                          </button>
+                          {showGiphyFor === watched._id && (
+                            <GiphyPicker
+                              onSelect={(url) => { setSelectedGifs(prev => ({ ...prev, [watched._id]: url })); setShowGiphyFor(null) }}
+                              onClose={() => setShowGiphyFor(null)}
+                            />
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => handleAddComment(watched._id)}
+                          disabled={!newComments[watched._id]?.trim() && !selectedGifs[watched._id]}
+                          style={{
+                            padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
+                            borderRadius: '999px', cursor: (newComments[watched._id]?.trim() || selectedGifs[watched._id]) ? 'pointer' : 'default',
+                            fontWeight: '700', fontSize: '0.85rem',
+                            opacity: (newComments[watched._id]?.trim() || selectedGifs[watched._id]) ? 1 : 0.45,
+                            transition: 'opacity 0.15s, background-color 0.15s'
+                          }}
+                        >
+                          Post
+                        </button>
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
             )
           })}
         </div>
+
+        </div>
       </div>
 
       <ScrollToTopButton />
+
+      {showMovieDetails && selectedMovie && (
+        <TMDBMovieModal
+          movie={selectedMovie}
+          onClose={() => setShowMovieDetails(false)}
+          onLogMovie={(movie) => { setShowMovieDetails(false); setMovieToLog(movie) }}
+          onWatchlistChange={() => {}}
+          onFavoriteChange={() => {}}
+        />
+      )}
+
+      {movieToLog && (
+        <LogMovieModal
+          movie={movieToLog}
+          onClose={() => setMovieToLog(null)}
+          onLogged={() => { setMovieToLog(null); fetchWatchedForMovie(selectedMovie.tmdb_id) }}
+        />
+      )}
     </div>
   )
 }

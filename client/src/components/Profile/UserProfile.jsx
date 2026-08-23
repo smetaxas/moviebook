@@ -41,7 +41,7 @@ const MovieGrid = ({ movies, onClick }) => (
         )}
         <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.movie_title}</p>
         <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>
-          {movie.rating ? `⭐ ${movie.rating}/5` : movie.movie_year}
+          {movie.rating ? `⭐ ${movie.rating}/5` : (movie.movie_year || 'Not rated')}
         </p>
       </div>
     ))}
@@ -66,6 +66,7 @@ function UserProfile() {
   const [user, setUser] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
   const [watchlist, setWatchlist] = useState([])
+  const [favorites, setFavorites] = useState([])
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const [selectedWatchlistMovie, setSelectedWatchlistMovie] = useState(null)
   const [movieToLog, setMovieToLog] = useState(null)
@@ -87,6 +88,7 @@ function UserProfile() {
     fetchUser()
     fetchWatchedMovies()
     fetchWatchlist()
+    fetchFavorites()
   }, [userId])
 
   // Arriving back here after "Go Back" from someone else's profile —
@@ -126,6 +128,15 @@ function UserProfile() {
       setWatchlist(res.data)
     } catch (err) {
       console.error('Failed to load watchlist')
+    }
+  }
+
+  const fetchFavorites = async () => {
+    try {
+      const res = await api.get(`/favorites/user/${userId}`)
+      setFavorites(res.data)
+    } catch (err) {
+      console.error('Failed to load favorites')
     }
   }
 
@@ -178,6 +189,7 @@ function UserProfile() {
             <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
               <StatTile count={watchedMovies.length} label="Movies Watched" icon="🎬" />
               <StatTile count={watchlist.length} label="To Watch" icon="🎯" />
+              <StatTile count={favorites.length} label="Favorites" icon="❤️" />
             </div>
           </div>
         </div>
@@ -203,6 +215,25 @@ function UserProfile() {
         ) : (
           <MovieGrid
             movies={watchlist}
+            onClick={(movie) => setSelectedWatchlistMovie({
+              tmdb_id: movie.movie_id,
+              title: movie.movie_title,
+              poster_url: movie.movie_poster,
+              year: movie.movie_year
+            })}
+          />
+        )}
+
+        {/* Favorites */}
+        <h3 style={{ margin: '2rem 0 1rem 0', fontSize: '1.2rem' }}><Emoji>❤️</Emoji> Favorite Movies</h3>
+        {favorites.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>❤️</Emoji></p>
+            <p style={{ color: '#999', margin: 0 }}>No favorite movies yet.</p>
+          </div>
+        ) : (
+          <MovieGrid
+            movies={favorites}
             onClick={(movie) => setSelectedWatchlistMovie({
               tmdb_id: movie.movie_id,
               title: movie.movie_title,

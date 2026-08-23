@@ -30,7 +30,7 @@ function GiphyPicker({ onSelect, onClose }) {
 
   return (
     <div style={{
-      position: 'absolute', bottom: '100%', left: 0,
+      position: 'absolute', bottom: '100%', right: 0,
       backgroundColor: '#1a1a1a',
       border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: '12px', padding: '1rem',

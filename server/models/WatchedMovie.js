@@ -21,9 +21,10 @@ const watchedMovieSchema = new mongoose.Schema({
   movie_year: {
     type: Number
   },
+  // Optional: a log can exist without a rating when it's created implicitly
+  // by commenting on an unwatched movie rather than through the rate/log flow.
   rating: {
     type: Number,
-    required: true,
     min: 1,
     max: 5
   },

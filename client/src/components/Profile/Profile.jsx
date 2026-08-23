@@ -46,10 +46,25 @@ const MovieGrid = ({ movies, onClick }) => (
         )}
         <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.movie_title || movie.title}</p>
         <p style={{ fontSize: '0.75rem', color: movie.release_date ? '#b31f2f' : '#aaa', margin: 0 }}>
-          {movie.release_date ? <Emoji>{`📅 ${movie.release_date}`}</Emoji> : movie.rating ? <Emoji>{`⭐ ${movie.rating}/5`}</Emoji> : movie.year}
+          {movie.release_date ? <Emoji>{`📅 ${movie.release_date}`}</Emoji> : movie.rating ? <Emoji>{`⭐ ${movie.rating}/5`}</Emoji> : (movie.movie_year || movie.year || 'Not rated')}
         </p>
       </div>
     ))}
+  </div>
+)
+
+// Animates a section open/closed by transitioning its grid row from 0fr to
+// 1fr — unlike max-height, this doesn't need a guessed cap and settles at
+// exactly the content's real height. Kept mounted while closed (rather than
+// conditionally rendered) so the collapse itself is what animates, not a hard cut.
+const Collapsible = ({ open, children }) => (
+  <div style={{
+    display: 'grid', gridTemplateRows: open ? '1fr' : '0fr',
+    transition: 'grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
+  }}>
+    <div style={{ overflow: 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.25s ease ' + (open ? '0.05s' : '0s') }}>
+      {children}
+    </div>
   </div>
 )
 
@@ -78,6 +93,7 @@ function Profile() {
   const [user, setUser] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
   const [watchlist, setWatchlist] = useState([])
+  const [favorites, setFavorites] = useState([])
   const [trendingMovies, setTrendingMovies] = useState([])
   const [upcomingMovies, setUpcomingMovies] = useState([])
   const [genres, setGenres] = useState([])
@@ -88,6 +104,7 @@ function Profile() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [watchedOpen, setWatchedOpen] = useState(false)
   const [watchlistOpen, setWatchlistOpen] = useState(false)
+  const [favoritesOpen, setFavoritesOpen] = useState(false)
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
@@ -105,6 +122,7 @@ function Profile() {
     fetchProfile()
     fetchWatchedMovies()
     fetchWatchlist()
+    fetchFavorites()
     fetchTrendingMovies()
     fetchUpcomingMovies()
     fetchGenres()
@@ -149,6 +167,15 @@ function Profile() {
       setWatchlist(res.data)
     } catch (err) {
       console.error('Failed to load watchlist')
+    }
+  }
+
+  const fetchFavorites = async () => {
+    try {
+      const res = await api.get('/favorites')
+      setFavorites(res.data)
+    } catch (err) {
+      console.error('Failed to load favorites')
     }
   }
 
@@ -329,6 +356,9 @@ function Profile() {
         >
           Community
         </NavButton>
+        <NavButton onClick={() => navigate('/awards')} icon="🏆">
+          Awards
+        </NavButton>
 
         <ProfileMenu
           user={user}
@@ -367,8 +397,7 @@ function Profile() {
             position: 'relative', overflow: 'hidden',
             background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
             border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-            padding: '1.75rem 2.25rem', marginBottom: '2rem',
-            boxShadow: '0 8px 28px rgba(0,0,0,0.35)'
+            padding: '1.75rem 2.25rem', marginBottom: '2rem'
           }}>
             <div style={{
               position: 'absolute', top: '-70px', left: '-70px', width: '220px', height: '220px',
@@ -429,9 +458,61 @@ function Profile() {
                   isOpen={watchlistOpen}
                   onClick={() => setWatchlistOpen(!watchlistOpen)}
                 />
+                <StatCard
+                  count={favorites.length}
+                  label="Favorites"
+                  icon="❤️"
+                  isOpen={favoritesOpen}
+                  onClick={() => setFavoritesOpen(!favoritesOpen)}
+                />
               </div>
             </div>
           </div>
+
+          {/* My Watched Movies */}
+          <Collapsible open={watchedOpen}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>My Watched Movies</h3>
+            {watchedMovies.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
+                <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
+                <p style={{ color: '#aaa' }}>No watched movies yet!</p>
+              </div>
+            ) : (
+              <MovieGrid movies={watchedMovies} onClick={(movie) => setSelectedWatchedMovie(movie._id)} />
+            )}
+          </Collapsible>
+
+          {/* Watchlist */}
+          <Collapsible open={watchlistOpen}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎯 Movies to Watch</h3>
+            {watchlist.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
+                <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</p>
+                <p style={{ color: '#aaa' }}>No movies in your watchlist yet!</p>
+              </div>
+            ) : (
+              <MovieGrid
+                movies={watchlist.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
+                onClick={(movie) => setSelectedTrendingMovie(movie)}
+              />
+            )}
+          </Collapsible>
+
+          {/* Favorites */}
+          <Collapsible open={favoritesOpen}>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>❤️ Favorite Movies</h3>
+            {favorites.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
+                <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>❤️</p>
+                <p style={{ color: '#aaa' }}>No favorite movies yet!</p>
+              </div>
+            ) : (
+              <MovieGrid
+                movies={favorites.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
+                onClick={(movie) => setSelectedTrendingMovie(movie)}
+              />
+            )}
+          </Collapsible>
 
           {/* Genre Movies */}
           {selectedGenre && (
@@ -448,39 +529,6 @@ function Profile() {
                 <p style={{ color: '#aaa', marginBottom: '2rem' }}>No movies found.</p>
               ) : (
                 <MovieGrid movies={genreMovies} onClick={setSelectedTrendingMovie} />
-              )}
-            </>
-          )}
-
-          {/* My Watched Movies */}
-          {watchedOpen && (
-            <>
-              <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>My Watched Movies</h3>
-              {watchedMovies.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
-                  <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
-                  <p style={{ color: '#aaa' }}>No watched movies yet!</p>
-                </div>
-              ) : (
-                <MovieGrid movies={watchedMovies} onClick={(movie) => setSelectedWatchedMovie(movie._id)} />
-              )}
-            </>
-          )}
-
-          {/* Watchlist */}
-          {watchlistOpen && (
-            <>
-              <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎯 Movies to Watch</h3>
-              {watchlist.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
-                  <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</p>
-                  <p style={{ color: '#aaa' }}>No movies in your watchlist yet!</p>
-                </div>
-              ) : (
-                <MovieGrid
-                  movies={watchlist.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
-                  onClick={(movie) => setSelectedTrendingMovie(movie)}
-                />
               )}
             </>
           )}
@@ -520,6 +568,7 @@ function Profile() {
           onClose={() => setSelectedTrendingMovie(null)}
           hideLog={isUpcoming(selectedTrendingMovie)}
           onWatchlistChange={fetchWatchlist}
+          onFavoriteChange={fetchFavorites}
           onLogMovie={(movie) => {
             setSelectedTrendingMovie(null)
             setMovieToLog(movie)
@@ -542,6 +591,8 @@ function Profile() {
         <SearchModal
           onClose={() => setShowSearch(false)}
           onMovieLogged={fetchWatchedMovies}
+          onWatchlistChange={fetchWatchlist}
+          onFavoriteChange={fetchFavorites}
         />
       )}
 

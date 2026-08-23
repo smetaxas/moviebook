@@ -11,6 +11,7 @@ const movieRoutes = require('./routes/movies');
 const watchedRoutes = require('./routes/watched');
 const commentRoutes = require('./routes/comments');
 const watchlistRoutes = require('./routes/watchlist');
+const favoritesRoutes = require('./routes/favorites');
 const twoFactorRoutes = require('./routes/twoFactor');
 const requireAuth = require('./middleware/auth');
 const cookieParser = require('cookie-parser');
@@ -86,6 +87,7 @@ app.use('/api/movies', requireAuth, movieRoutes);
 app.use('/api/watched', requireAuth, watchedRoutes);
 app.use('/api/comments', requireAuth, commentRoutes);
 app.use('/api/watchlist', requireAuth, watchlistRoutes);
+app.use('/api/favorites', requireAuth, favoritesRoutes);
 app.use('/api/2fa', twoFactorRoutes);
 
 // Test route

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
 const WatchedMovie = require('../models/WatchedMovie');
+const ReviewComment = require('../models/ReviewComment');
 
 // Log a movie
 router.post('/', requireAuth, async (req, res) => {
@@ -14,7 +15,17 @@ router.post('/', requireAuth, async (req, res) => {
     });
 
     if (existing) {
-      return res.status(400).json({ message: 'You have already logged this movie' });
+      if (existing.rating) {
+        return res.status(400).json({ message: 'You have already logged this movie' });
+      }
+      // An unrated log already exists (created implicitly by commenting) —
+      // add the rating to it instead of rejecting as a duplicate.
+      existing.rating = rating;
+      existing.movie_title = movie_title || existing.movie_title;
+      existing.movie_poster = movie_poster || existing.movie_poster;
+      existing.movie_year = movie_year || existing.movie_year;
+      await existing.save();
+      return res.json(existing);
     }
 
     const watchedMovie = await WatchedMovie.create({
@@ -27,6 +38,54 @@ router.post('/', requireAuth, async (req, res) => {
     });
 
     res.status(201).json(watchedMovie);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
+// Comment on a movie — every comment belongs to a log, so this finds the
+// caller's existing log for the movie or creates an unrated one on the fly,
+// then attaches the comment to it. Used wherever someone comments on a movie
+// they haven't necessarily rated/logged yet.
+router.post('/comment/:movieId', requireAuth, async (req, res) => {
+  try {
+    const { comment, gif_url, movie_title, movie_poster, movie_year } = req.body;
+    const trimmedComment = typeof comment === 'string' ? comment.trim() : '';
+
+    if (!trimmedComment && !gif_url) {
+      return res.status(400).json({ message: 'Comment text or a GIF is required' });
+    }
+
+    if (gif_url && !/^https:\/\/media\d*\.giphy\.com\//.test(gif_url)) {
+      return res.status(400).json({ message: 'Invalid GIF URL' });
+    }
+
+    let watchedMovie = await WatchedMovie.findOne({ user_id: req.userId, movie_id: req.params.movieId });
+    let createdLog = false;
+
+    if (!watchedMovie) {
+      if (!movie_title) {
+        return res.status(400).json({ message: 'movie_title is required to log this movie' });
+      }
+      watchedMovie = await WatchedMovie.create({
+        user_id: req.userId,
+        movie_id: req.params.movieId,
+        movie_title,
+        movie_poster,
+        movie_year
+      });
+      createdLog = true;
+    }
+
+    const newComment = await ReviewComment.create({
+      watched_movie_id: watchedMovie._id,
+      commenter_id: req.userId,
+      comment: trimmedComment,
+      gif_url: gif_url || null
+    });
+    const populatedComment = await newComment.populate('commenter_id', 'email username profile_photo');
+
+    res.status(201).json({ comment: populatedComment, watchedMovieId: watchedMovie._id, createdLog });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -60,8 +119,6 @@ router.get('/', requireAuth, async (req, res) => {
 // Get all watched movies by movie_id (all users) with comments
 router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
   try {
-    const ReviewComment = require('../models/ReviewComment');
-
     const watchedMovies = await WatchedMovie.find({ movie_id: req.params.movieId })
       .populate('user_id', 'email username profile_photo')
       .sort({ movie_year: -1 })

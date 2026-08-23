@@ -22,4 +22,6 @@ const reviewCommentSchema = new mongoose.Schema({
     }
 }, { timestamps: true, versionKey: false });
 
+reviewCommentSchema.index({ watched_movie_id: 1, createdAt: -1 });
+
 module.exports = mongoose.model('ReviewComment', reviewCommentSchema);
