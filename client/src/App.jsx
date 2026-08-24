@@ -5,6 +5,7 @@ import ForgotPassword from './components/Auth/ForgotPassword'
 import ResetPassword from './components/Auth/ResetPassword'
 import Profile from './components/Profile/Profile'
 import WatchedMoviesPage from './components/Profile/WatchedMoviesPage'
+import Stats from './components/Profile/Stats'
 import AwardedMovies from './components/Movies/AwardedMovies'
 import CommunityFeed from './components/Feed/CommunityFeed'
 import UserProfile from './components/Profile/UserProfile'
@@ -25,6 +26,7 @@ function App() {
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/profile/watched" element={<WatchedMoviesPage />} />
+        <Route path="/stats" element={<Stats />} />
         <Route path="/awards" element={<AwardedMovies />} />
         <Route path="/feed" element={<CommunityFeed />} />
         <Route path="/user/:userId" element={<UserProfile />} />

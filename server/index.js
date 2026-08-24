@@ -47,8 +47,6 @@ app.use(cors({
 }))
 
 // Rate limiting
-// Limits are relaxed outside production so local dev/testing doesn't get
-// blocked by normal usage; production keeps the strict security posture.
 const isProd = process.env.NODE_ENV === 'production'
 
 const generalLimiter = rateLimit({
@@ -96,16 +94,6 @@ app.get('/', (req, res) => {
   res.send('Hello from CineLog server!');
 });
 
-if (isProd) {
-  app.listen(port, () => {
-    console.log(`Server running on port ${port}`);
-  });
-} else {
-  const https = require('https');
-  const { getDevHttpsOptions } = require('./config/https');
-  getDevHttpsOptions().then((options) => {
-    https.createServer(options, app).listen(port, () => {
-      console.log(`Server running on https://localhost:${port}`);
-    });
-  });
-}
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});

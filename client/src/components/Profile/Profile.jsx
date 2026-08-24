@@ -62,7 +62,7 @@ const Collapsible = ({ open, children }) => (
     display: 'grid', gridTemplateRows: open ? '1fr' : '0fr',
     transition: 'grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
   }}>
-    <div style={{ overflow: 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.25s ease ' + (open ? '0.05s' : '0s') }}>
+    <div style={{ overflow: open ? 'visible' : 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.25s ease ' + (open ? '0.05s' : '0s') }}>
       {children}
     </div>
   </div>
@@ -356,6 +356,18 @@ function Profile() {
         >
           Community
         </NavButton>
+        <NavButton
+          onClick={() => navigate('/stats')}
+          icon={
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <line x1="5" y1="21" x2="5" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <line x1="12" y1="21" x2="12" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <line x1="19" y1="21" x2="19" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          }
+        >
+          Stats
+        </NavButton>
         <NavButton onClick={() => navigate('/awards')} icon="🏆">
           Awards
         </NavButton>
@@ -366,6 +378,7 @@ function Profile() {
           onLogout={handleLogout}
           onDeleteAccount={() => setShowDeleteAccount(true)}
         />
+        
       </Navbar>
 
       {/* Main Layout */}
