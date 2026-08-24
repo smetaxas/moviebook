@@ -229,6 +229,7 @@ function Register() {
                   }}
                   required
                   autoComplete="new-password"
+                  passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
                   rightSlot={eyeToggle(showPassword, setShowPassword)}
                 />
                 {passwordStrength && (
@@ -253,6 +254,7 @@ function Register() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 autoComplete="new-password"
+                passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
                 rightSlot={eyeToggle(showConfirmPassword, setShowConfirmPassword)}
               />
             </div>

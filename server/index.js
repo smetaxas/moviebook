@@ -40,6 +40,7 @@ app.use(cookieParser());
 app.use(cors({
   origin: [
     'http://localhost:5173',
+    'https://localhost:5173',
     'https://moviebook-opal.vercel.app'
   ],
   credentials: true
@@ -95,6 +96,16 @@ app.get('/', (req, res) => {
   res.send('Hello from CineLog server!');
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+if (isProd) {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+} else {
+  const https = require('https');
+  const { getDevHttpsOptions } = require('./config/https');
+  getDevHttpsOptions().then((options) => {
+    https.createServer(options, app).listen(port, () => {
+      console.log(`Server running on https://localhost:${port}`);
+    });
+  });
+}
