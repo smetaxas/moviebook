@@ -1,13 +1,24 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import useIsMobile from '../../hooks/useIsMobile'
+import useModalTransition, { modalTransitionKeyframes } from '../../hooks/useModalTransition'
+import { fetchMovie, getCachedMovie } from '../../api/movieCache'
+import { prefetchPerson } from '../../api/personCache'
 import Emoji from '../UI/Emoji'
 import GiphyPicker from '../UI/GiphyPicker'
 import Avatar from '../UI/Avatar'
+import CommunityRating from '../UI/CommunityRating'
+import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
+import TrailerModal from '../UI/TrailerModal'
+import WatchProviderLogos from '../UI/WatchProviderLogos'
+import FadeInImage from '../UI/FadeInImage'
+import { buildNavState } from '../../utils/navState'
 
-function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange, onFavoriteChange }) {
+function TMDBMovieModal({ movie, onClose, onLogMovie, onWatchlistChange, onFavoriteChange, hideCommunityLink }) {
   const navigate = useNavigate()
-  const [tmdbMovie, setTmdbMovie] = useState(null)
+  const location = useLocation()
+  const [tmdbMovie, setTmdbMovie] = useState(() => getCachedMovie(movie.tmdb_id))
   const [providers, setProviders] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -20,7 +31,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
   const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [favoriteHover, setFavoriteHover] = useState(false)
   const [trailerHover, setTrailerHover] = useState(false)
-  const [whereHover, setWhereHover] = useState(false)
+  const [showTrailer, setShowTrailer] = useState(false)
   const [communityHover, setCommunityHover] = useState(false)
   const [watchedMovieId, setWatchedMovieId] = useState(null)
   const [comments, setComments] = useState([])
@@ -31,38 +42,88 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
   const [showGiphy, setShowGiphy] = useState(false)
   const [selectedGif, setSelectedGif] = useState(null)
   const [gifButtonHover, setGifButtonHover] = useState(false)
+  // The poster/backdrop overlap math below is tuned in pixels for a
+  // desktop-width backdrop — on a narrow phone screen the same negative
+  // margin drags the poster up past the (much shorter, same 16:9 aspect)
+  // backdrop entirely. Scale both down together on mobile.
+  const isMobile = useIsMobile()
+  // Grows out of the clicked poster on open, shrinks back into it on close.
+  const { panelRef, overlayStyle, panelStyle, close } = useModalTransition(onClose)
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
 
+  // Carries enough to reopen this exact movie's details — comments included —
+  // when the profile page's "Back" button forwards this state on to the
+  // current route, same contract as goToPerson below.
   const goToUser = (userId) => {
-    navigate(`/user/${userId}`)
+    navigate(`/user/${userId}`, {
+      state: buildNavState(location, {
+        reopenMovieDetails: {
+          tmdb_id: movie.tmdb_id,
+          title: tmdbMovie?.title || movie.title,
+          year: tmdbMovie?.year || movie.year,
+          poster_url: tmdbMovie?.poster_url || movie.poster_url,
+          release_date: movie.release_date || tmdbMovie?.release_date
+        }
+      })
+    })
+  }
+
+  // Carries enough to reopen this exact movie's details when the person
+  // page's "Back" button forwards this state on to the current route, plus
+  // whatever we already know about the person (name/photo) so their page
+  // can render its header instantly instead of waiting on its own fetch.
+  const goToPerson = (person) => {
+    navigate(`/person/${person.id}?role=${person.role}`, {
+      state: buildNavState(location, {
+        initialPerson: { id: person.id, name: person.name, profile_url: person.profile_url },
+        reopenMovieDetails: {
+          tmdb_id: movie.tmdb_id,
+          title: tmdbMovie?.title || movie.title,
+          year: tmdbMovie?.year || movie.year,
+          poster_url: tmdbMovie?.poster_url || movie.poster_url,
+          release_date: movie.release_date || tmdbMovie?.release_date
+        }
+      })
+    })
   }
 
   // "Comments" here are just this user's own log — the real comment section,
   // with every log from the community, lives in the feed. Send them there.
+  // `returnReopenMovieDetails` isn't touched by the feed itself — it's
+  // carried through so the feed's own "Back" button can hand it to
+  // `backTo` (this page) and reopen this exact modal, the same "go back
+  // and reopen" contract goToPerson/goToUser use.
   const goToCommunityComments = () => {
     navigate('/feed', {
-      state: {
+      state: buildNavState(location, {
         reopenMovie: {
           tmdb_id: movie.tmdb_id,
           title: tmdbMovie?.title || movie.title,
           year: tmdbMovie?.year || movie.year,
           poster_url: tmdbMovie?.poster_url || movie.poster_url
+        },
+        returnReopenMovieDetails: {
+          tmdb_id: movie.tmdb_id,
+          title: tmdbMovie?.title || movie.title,
+          year: tmdbMovie?.year || movie.year,
+          poster_url: tmdbMovie?.poster_url || movie.poster_url,
+          release_date: movie.release_date || tmdbMovie?.release_date
         }
-      }
+      })
     })
   }
 
   useEffect(() => {
     const fetchDetails = async () => {
       try {
-        const [tmdbRes, watchlistRes, favoriteRes, providersRes] = await Promise.all([
-          api.get(`/movies/tmdb/${movie.tmdb_id}`),
+        const [tmdbData, watchlistRes, favoriteRes, providersRes] = await Promise.all([
+          fetchMovie(movie.tmdb_id),
           api.get(`/watchlist/check/${movie.tmdb_id}`),
           api.get(`/favorites/check/${movie.tmdb_id}`),
-          api.get(`/movies/tmdb/${movie.tmdb_id}/providers`)
+          api.get(`/movies/tmdb/${movie.tmdb_id}/providers?title=${encodeURIComponent(movie.title || '')}`)
         ])
-        setTmdbMovie(tmdbRes.data)
+        setTmdbMovie(tmdbData)
         setInWatchlist(watchlistRes.data.inWatchlist)
         setWatchlistId(watchlistRes.data.id)
         setIsFavorite(favoriteRes.data.isFavorite)
@@ -200,32 +261,51 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
     })
   }
 
-  const imdbScore = tmdbMovie?.ratings?.imdb ? parseFloat(tmdbMovie.ratings.imdb) : null
-  const rtScore = tmdbMovie?.ratings?.rotten_tomatoes ? parseInt(tmdbMovie.ratings.rotten_tomatoes, 10) : null
-  const metaScore = tmdbMovie?.ratings?.metacritic ? parseInt(tmdbMovie.ratings.metacritic, 10) : null
-  const metaColor = metaScore == null ? '#888' : metaScore >= 61 ? '#6c3' : metaScore >= 40 ? '#fc3' : '#f33'
-
   const metaLine = tmdbMovie
-    ? [tmdbMovie.director, tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, formatDate(tmdbMovie.release_date)]
+    ? [tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, formatDate(tmdbMovie.release_date)]
         .filter(Boolean)
     : []
 
+  // Whether WatchProviderLogos will render the full logo card vs a compact
+  // status pill — decides where it sits in the layout below.
+  const hasProviders = ['flatrate', 'rent', 'buy'].some(c => providers?.[c]?.length > 0)
+
+  // Whether "Log Movie" should show at all — driven by the actual release
+  // date rather than which grid this modal was opened from (movie.release_date,
+  // the region-filtered date from the /upcoming list, is preferred over
+  // tmdbMovie.release_date — the global /movie/:id primary date, which can
+  // already be in the past even for a movie still upcoming in this region).
+  // A movie can't have been watched before it's out, regardless of whether
+  // it was reached via the Upcoming grid specifically or via
+  // Trending/Search/Genre surfacing a title that hasn't released yet.
+  const releaseDate = movie.release_date || tmdbMovie?.release_date
+  const notYetReleased = releaseDate && releaseDate > new Date().toISOString().split('T')[0]
+
   return (
+    <>
     <div style={{
       position: 'fixed', top: 0, left: 0,
       width: '100%', height: '100%',
       backgroundColor: 'rgba(0,0,0,0.8)',
+      backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
       display: 'flex', justifyContent: 'center', alignItems: 'center',
-      zIndex: 3000, padding: '1rem'
+      zIndex: 3000, padding: '1rem',
+      ...overlayStyle
     }}>
-      <div style={{
+      <div ref={panelRef} style={{
         backgroundColor: '#1a1a1a', borderRadius: '12px',
         width: '100%', maxWidth: '980px',
-        maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden',
-        position: 'relative', boxShadow: '0 25px 60px rgba(0,0,0,0.7)'
+        maxHeight: '90dvh', overflowY: 'auto', overflowX: 'hidden',
+        position: 'relative', boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
+        ...panelStyle
       }}>
+        <style>{`
+          @keyframes movieContentFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+          ${modalTransitionKeyframes}
+        `}</style>
+
         <button
-          onClick={onClose}
+          onClick={close}
           style={{
             position: 'absolute', top: '1rem', right: '1rem', zIndex: 10,
             width: '36px', height: '36px', borderRadius: '50%',
@@ -237,15 +317,17 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
           ✕
         </button>
 
-        {loading && <p style={{ color: 'white', padding: '2rem' }}>Loading...</p>}
         {error && <p style={{ color: '#b31f2f', padding: '2rem' }}>{error}</p>}
 
-        {tmdbMovie && (
+        {/* The poster/title header renders immediately from what the caller
+            already had (movie prop) rather than waiting on the fetch below —
+            only the parts that genuinely need fresh data show a skeleton. */}
+        {!error && (
           <>
             {/* Backdrop */}
             <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', borderRadius: '12px 12px 0 0', overflow: 'hidden' }}>
-              {tmdbMovie.backdrop_url && (
-                <img
+              {tmdbMovie?.backdrop_url && (
+                <FadeInImage
                   src={tmdbMovie.backdrop_url}
                   alt=""
                   style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
@@ -255,80 +337,78 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                 position: 'absolute', inset: 0,
                 background: 'linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.75) 65%, #1a1a1a 100%)'
               }} />
+              {tmdbMovie?.trailer_key && (
+                <button
+                  onClick={() => setShowTrailer(true)}
+                  onMouseEnter={() => setTrailerHover(true)}
+                  onMouseLeave={() => setTrailerHover(false)}
+                  aria-label="Play trailer"
+                  style={{
+                    position: 'absolute', top: '50%', left: '50%', transform: trailerHover ? 'translate(-50%, -50%) scale(1.08)' : 'translate(-50%, -50%) scale(1)',
+                    width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px', borderRadius: '50%',
+                    backgroundColor: trailerHover ? '#b31f2f' : 'rgba(0,0,0,0.55)',
+                    border: '2px solid ' + (trailerHover ? '#b31f2f' : 'rgba(255,255,255,0.6)'),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', boxShadow: trailerHover ? '0 8px 26px rgba(179,31,47,0.55)' : '0 4px 18px rgba(0,0,0,0.5)',
+                    transition: 'background-color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s'
+                  }}
+                >
+                  <span style={{
+                    display: 'block', width: 0, height: 0, marginLeft: '5px',
+                    borderTop: '13px solid transparent', borderBottom: '13px solid transparent',
+                    borderLeft: '21px solid white'
+                  }} />
+                </button>
+              )}
             </div>
 
-            {/* Poster + title, overlapping the backdrop */}
-            <div style={{ display: 'flex', gap: '1.5rem', padding: '0 2rem', marginTop: '-130px', position: 'relative', zIndex: 2 }}>
-              {tmdbMovie.poster_url && (
+            {/* Poster + title, overlapping the backdrop. The overlap
+                (marginTop) and the title column's matching paddingTop are
+                tuned together to the poster's height — both scale down on
+                mobile so a narrower, shorter poster doesn't drag the
+                header up past a backdrop that's now much shorter too
+                (same 16:9 aspect, less absolute height). */}
+            <div style={{
+              display: 'flex', gap: isMobile ? '1rem' : '1.5rem',
+              padding: isMobile ? '0 1rem' : '0 2rem',
+              marginTop: isMobile ? '-80px' : '-130px',
+              position: 'relative', zIndex: 2
+            }}>
+              {(tmdbMovie?.poster_url || movie.poster_url) && (
                 <img
-                  src={tmdbMovie.poster_url}
-                  alt={tmdbMovie.title}
-                  style={{ width: '160px', flexShrink: 0, borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 30px rgba(0,0,0,0.6)' }}
+                  src={tmdbMovie?.poster_url || movie.poster_url}
+                  alt={tmdbMovie?.title || movie.title}
+                  style={{ width: isMobile ? '100px' : '160px', flexShrink: 0, borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 30px rgba(0,0,0,0.6)' }}
                 />
               )}
-              <div style={{ flex: 1, paddingTop: '132px', minWidth: 0 }}>
-                <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: '1.6rem', fontWeight: '800' }}>
-                  {tmdbMovie.title} <span style={{ color: '#aaa', fontWeight: '400' }}>({tmdbMovie.year})</span>
+              <div style={{ flex: 1, paddingTop: isMobile ? '82px' : '132px', minWidth: 0 }}>
+                <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800' }}>
+                  {tmdbMovie?.title || movie.title} <span style={{ color: '#aaa', fontWeight: '400' }}>({tmdbMovie?.year || movie.year})</span>
                 </h2>
                 <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>
+                  {tmdbMovie?.director && (
+                    <>
+                      <span
+                        onClick={() => tmdbMovie.director.id && goToPerson(tmdbMovie.director)}
+                        style={{ cursor: tmdbMovie.director.id ? 'pointer' : 'default', transition: 'color 0.15s' }}
+                        onMouseEnter={e => { if (tmdbMovie.director.id) { e.currentTarget.style.color = '#dc3c4f'; prefetchPerson(tmdbMovie.director.id, tmdbMovie.director.role) } }}
+                        onMouseLeave={e => { e.currentTarget.style.color = '#aaa' }}
+                      >
+                        {tmdbMovie.director.name}
+                      </span>
+                      {metaLine.length > 0 && '  ·  '}
+                    </>
+                  )}
                   {metaLine.join('  ·  ')}
                 </p>
               </div>
             </div>
 
-            <div style={{ padding: '1.5rem 2rem 2rem 2rem' }}>
+            <div style={{ padding: isMobile ? '1.25rem 1rem 1.5rem 1rem' : '1.5rem 2rem 2rem 2rem' }}>
+              {!tmdbMovie ? <MovieDetailsSkeleton /> : (
+                <div style={{ animation: 'movieContentFadeIn 0.35s ease' }}>
               {/* Ratings */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                <a
-                  href={tmdbMovie.imdb_id ? `https://www.imdb.com/title/${tmdbMovie.imdb_id}` : undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.35rem 0.7rem',
-                    backgroundColor: imdbScore != null ? 'rgba(245,197,24,0.12)' : 'transparent',
-                    border: '1px solid rgba(245,197,24,0.45)',
-                    borderRadius: '6px', color: '#f5c518', textDecoration: 'none',
-                    fontWeight: '700', fontSize: '0.85rem'
-                  }}
-                >
-                  <span style={{ backgroundColor: '#f5c518', color: '#000', borderRadius: '3px', padding: '0 4px', fontSize: '0.7rem' }}>IMDb</span>
-                  {imdbScore != null ? `${imdbScore.toFixed(1)}/10` : 'N/A'}
-                </a>
-                <a
-                  href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(tmdbMovie.title)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.35rem 0.7rem',
-                    backgroundColor: rtScore == null ? 'transparent' : (rtScore >= 60 ? 'rgba(250,50,10,0.12)' : 'rgba(112,168,80,0.12)'),
-                    border: '1px solid ' + (rtScore == null ? 'rgba(255,255,255,0.15)' : (rtScore >= 60 ? 'rgba(250,50,10,0.45)' : 'rgba(112,168,80,0.45)')),
-                    borderRadius: '6px', color: rtScore == null ? '#888' : (rtScore >= 60 ? '#fa320a' : '#70a850'),
-                    textDecoration: 'none', fontWeight: '700', fontSize: '0.85rem'
-                  }}
-                >
-                  <Emoji>{rtScore == null ? '🍅' : (rtScore >= 60 ? '🍅' : '🤢')}</Emoji> {rtScore != null ? `${rtScore}%` : 'N/A'}
-                </a>
-                <a
-                  href={`https://www.metacritic.com/search/${encodeURIComponent(tmdbMovie.title)}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.35rem 0.7rem',
-                    backgroundColor: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.15)',
-                    borderRadius: '6px', color: '#ddd', textDecoration: 'none',
-                    fontWeight: '700', fontSize: '0.85rem'
-                  }}
-                >
-                  <span style={{ backgroundColor: metaColor, color: '#000', borderRadius: '3px', padding: '0 5px', fontSize: '0.75rem', fontWeight: '800' }}>
-                    {metaScore != null ? metaScore : '–'}
-                  </span>
-                  Metacritic
-                </a>
-              </div>
+              <CommunityRating average={tmdbMovie.communityRating?.average} count={tmdbMovie.communityRating?.count || 0} />
 
               {/* Synopsis */}
               {tmdbMovie.description && (
@@ -342,37 +422,53 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                 <div style={{ marginBottom: '1.5rem' }}>
                   <h4 style={{ color: 'white', margin: '0 0 0.75rem 0', fontSize: '0.95rem' }}>Cast</h4>
                   <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                    {tmdbMovie.cast.map((member, i) => (
-                      <div key={i} style={{ flexShrink: 0, width: '76px', textAlign: 'center' }}>
-                        {member.profile_url ? (
-                          <img
-                            src={member.profile_url}
-                            alt={member.name}
-                            style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', marginBottom: '0.4rem' }}
-                          />
-                        ) : (
-                          <div style={{
-                            width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#333',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#aaa', fontWeight: '700', fontSize: '1.2rem', lineHeight: 1, margin: '0 auto 0.4rem auto'
-                          }}>
-                            {member.name?.[0]?.toUpperCase() || '?'}
-                          </div>
-                        )}
-                        <p style={{ color: 'white', fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: '600', lineHeight: '1.2' }}>{member.name}</p>
-                        <p style={{ color: '#888', fontSize: '0.7rem', margin: 0, lineHeight: '1.2' }}>{member.character}</p>
-                      </div>
-                    ))}
+                    {tmdbMovie.cast.map((member, i) => {
+                      const clickable = Boolean(member.id)
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => clickable && goToPerson(member)}
+                          style={{ flexShrink: 0, width: '76px', textAlign: 'center', cursor: clickable ? 'pointer' : 'default' }}
+                        >
+                          {member.profile_url ? (
+                            <img
+                              src={member.profile_url}
+                              alt={member.name}
+                              style={{
+                                width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', marginBottom: '0.4rem',
+                                border: '2px solid transparent', transition: 'transform 0.15s, border-color 0.15s'
+                              }}
+                              onMouseEnter={e => { if (clickable) { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.borderColor = '#dc3c4f'; prefetchPerson(member.id, member.role) } }}
+                              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = 'transparent' }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#333',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: '#aaa', fontWeight: '700', fontSize: '1.2rem', lineHeight: 1, margin: '0 auto 0.4rem auto'
+                            }}>
+                              {member.name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                          )}
+                          <p style={{ color: 'white', fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: '600', lineHeight: '1.2' }}>{member.name}</p>
+                          <p style={{ color: '#888', fontSize: '0.7rem', margin: 0, lineHeight: '1.2' }}>{member.character}</p>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Actions */}
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                {!hideLog && (
+              {/* Actions — on mobile a wrapping row leaves Favorite stranded
+                  on its own line, so it's a grid instead: Log Movie (the main
+                  action) full width, Watchlist + Favorite split evenly below. */}
+              <div style={isMobile
+                ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }
+                : { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {!notYetReleased && (
                   <button
                     onClick={() => onLogMovie(movie)}
-                    style={{ padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
+                    style={{ gridColumn: '1 / -1', padding: isMobile ? '0.7rem 1rem' : '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}
                   >
                     Log Movie
                   </button>
@@ -383,8 +479,8 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   onMouseEnter={() => setWatchlistHover(true)}
                   onMouseLeave={() => setWatchlistHover(false)}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.6rem 1.25rem',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                    padding: isMobile ? '0.7rem 0.5rem' : '0.6rem 1.25rem', whiteSpace: 'nowrap',
                     backgroundColor: inWatchlist
                       ? (watchlistHover ? 'rgba(179,31,47,0.15)' : 'rgba(0,200,0,0.15)')
                       : 'rgba(255,255,255,0.08)',
@@ -406,8 +502,8 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   onMouseEnter={() => setFavoriteHover(true)}
                   onMouseLeave={() => setFavoriteHover(false)}
                   style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                    padding: '0.6rem 1.25rem',
+                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+                    padding: isMobile ? '0.7rem 0.5rem' : '0.6rem 1.25rem', whiteSpace: 'nowrap',
                     backgroundColor: isFavorite
                       ? (favoriteHover ? 'rgba(179,31,47,0.15)' : 'rgba(220,60,79,0.15)')
                       : 'rgba(255,255,255,0.08)',
@@ -423,100 +519,55 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                       ? <Emoji>{favoriteHover ? '💔 Remove' : '❤️ Favorited'}</Emoji>
                       : <Emoji>🤍 Favorite</Emoji>}
                 </button>
-                {tmdbMovie.trailer_key && (
-                  <a
-                    href={'https://www.youtube.com/watch?v=' + tmdbMovie.trailer_key}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onMouseEnter={() => setTrailerHover(true)}
-                    onMouseLeave={() => setTrailerHover(false)}
+
+                {/* When there's nothing to show but a compact status pill
+                    (no providers, not yet released, still in theaters —
+                    whatever WatchProviderLogos decides), it sits right next
+                    to Favorite instead of dropping to its own row below,
+                    which only the full provider-logo card needs. */}
+                {!hasProviders && (
+                  <div style={{ gridColumn: '1 / -1', display: 'flex' }}>
+                    <WatchProviderLogos providers={providers} title={tmdbMovie.title} releaseDate={releaseDate} />
+                  </div>
+                )}
+              </div>
+
+              {hasProviders && (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <WatchProviderLogos providers={providers} title={tmdbMovie.title} releaseDate={releaseDate} />
+                </div>
+              )}
+
+              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '1.5rem 0' }} />
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', margin: watchedMovieId ? '0 0 1rem 0' : '0 0 0.6rem 0' }}>
+                <h3 style={{ color: 'white', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap' }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
+                {!hideCommunityLink && (
+                  <button
+                    onClick={goToCommunityComments}
+                    onMouseEnter={() => setCommunityHover(true)}
+                    onMouseLeave={() => setCommunityHover(false)}
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
-                      padding: '0.6rem 1.25rem 0.6rem 1rem',
-                      backgroundColor: trailerHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
-                      border: '1px solid ' + (trailerHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
-                      borderRadius: '6px', color: 'white', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
-                      boxShadow: trailerHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
+                      display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
+                      padding: '0.4rem 0.9rem 0.4rem 0.4rem',
+                      backgroundColor: communityHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
+                      border: '1px solid ' + (communityHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
+                      borderRadius: '999px', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem', whiteSpace: 'nowrap',
+                      boxShadow: communityHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
                       transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
                     }}
                   >
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                       width: '20px', height: '20px', borderRadius: '50%',
-                      backgroundColor: trailerHover ? 'white' : '#b31f2f',
-                      color: trailerHover ? '#b31f2f' : 'white',
-                      fontSize: '0.6rem', flexShrink: 0
+                      backgroundColor: communityHover ? 'white' : '#b31f2f',
+                      fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
                     }}>
-                      ▶
+                      🌍
                     </span>
-                    Watch Trailer
-                  </a>
+                    Community Comments
+                  </button>
                 )}
-
-                {/* Where to Watch — one click, straight through. Uses the JustWatch/TMDB
-                    link when we have regional availability data, otherwise falls back to
-                    a Google search — but either way it's a single <a>, not a button that
-                    opens something else you then have to click again. */}
-                <a
-                  href={
-                    providers && (providers.flatrate?.length || providers.rent?.length || providers.buy?.length)
-                      ? providers.link
-                      : 'https://www.google.com/search?q=where+to+watch+' + encodeURIComponent(tmdbMovie.title)
-                  }
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onMouseEnter={() => setWhereHover(true)}
-                  onMouseLeave={() => setWhereHover(false)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
-                    padding: '0.6rem 1.25rem 0.6rem 1rem',
-                    backgroundColor: whereHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
-                    border: '1px solid ' + (whereHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
-                    borderRadius: '6px', color: 'white', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
-                    boxShadow: whereHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
-                    transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
-                  }}
-                >
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '20px', height: '20px', borderRadius: '50%',
-                    backgroundColor: whereHover ? 'white' : '#b31f2f',
-                    fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
-                  }}>
-                    📺
-                  </span>
-                  Where to Watch
-                </a>
-              </div>
-
-              <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', margin: '1.5rem 0' }} />
-
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: watchedMovieId ? '0 0 1rem 0' : '0 0 0.3rem 0' }}>
-                <h3 style={{ color: 'white', margin: 0, fontSize: '1rem', fontWeight: 800 }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
-                <button
-                  onClick={goToCommunityComments}
-                  onMouseEnter={() => setCommunityHover(true)}
-                  onMouseLeave={() => setCommunityHover(false)}
-                  style={{
-                    display: 'inline-flex', alignItems: 'center', gap: '0.55rem',
-                    padding: '0.4rem 0.9rem 0.4rem 0.4rem',
-                    backgroundColor: communityHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
-                    border: '1px solid ' + (communityHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
-                    borderRadius: '999px', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem',
-                    boxShadow: communityHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
-                    transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
-                  }}
-                >
-                  <span style={{
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                    width: '20px', height: '20px', borderRadius: '50%',
-                    backgroundColor: communityHover ? 'white' : '#b31f2f',
-                    fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
-                  }}>
-                    🌍
-                  </span>
-                  Community Comments
-                </button>
               </div>
               {!watchedMovieId && (
                 <p style={{ color: '#888', fontSize: '0.8rem', margin: '0 0 1rem 0' }}>Commenting logs this movie for you — you can rate it later from your profile.</p>
@@ -524,7 +575,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
 
               {selectedGif && (
                 <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
-                  <img src={selectedGif} alt="Selected GIF" style={{ maxHeight: '120px', borderRadius: '10px', display: 'block' }} />
+                  <img src={selectedGif} alt="Selected GIF" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', display: 'block' }} />
                   <button
                     type="button"
                     onClick={() => setSelectedGif(null)}
@@ -541,7 +592,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                 </div>
               )}
 
-              <form onSubmit={handleAddComment} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+              <form onSubmit={handleAddComment} style={{ position: 'relative', display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
                 <input
                   type="text"
                   value={newComment}
@@ -551,7 +602,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   placeholder="Add a comment..."
                   maxLength={500}
                   style={{
-                    flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px',
+                    flex: 1, minWidth: 0, padding: '0.6rem 0.9rem', borderRadius: '999px',
                     border: '1px solid ' + (commentFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
                     backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem',
                     boxShadow: commentFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
@@ -559,7 +610,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   }}
                 />
 
-                <div style={{ position: 'relative' }}>
+                <div>
                   <button
                     type="button"
                     onClick={() => setShowGiphy(v => !v)}
@@ -571,7 +622,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                       backgroundColor: showGiphy || gifButtonHover ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
                       color: 'white',
                       border: '1px solid ' + (showGiphy ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
-                      borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem',
+                      borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0,
                       transition: 'background-color 0.15s, border-color 0.15s'
                     }}
                   >
@@ -581,6 +632,8 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                     <GiphyPicker
                       onSelect={(url) => { setSelectedGif(url); setShowGiphy(false) }}
                       onClose={() => setShowGiphy(false)}
+                      // Anchored to the form, so never wider than it.
+                      style={{ width: 'min(320px, 100%)' }}
                     />
                   )}
                 </div>
@@ -589,7 +642,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   type="submit"
                   disabled={!newComment.trim() && !selectedGif}
                   style={{
-                    padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
+                    padding: isMobile ? '0.6rem 1rem' : '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', flexShrink: 0,
                     borderRadius: '999px', cursor: (newComment.trim() || selectedGif) ? 'pointer' : 'default', fontWeight: '700', fontSize: '0.85rem',
                     opacity: (newComment.trim() || selectedGif) ? 1 : 0.45, transition: 'opacity 0.15s'
                   }}
@@ -606,15 +659,15 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                       size={32}
                       onClick={comment.commenter_id?._id !== currentUserId ? () => goToUser(comment.commenter_id?._id) : undefined}
                     />
-                    <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                    <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '0.5rem', rowGap: '0.1rem', marginBottom: '0.2rem' }}>
                         <span
                           style={{ fontWeight: '700', fontSize: '0.85rem', color: 'white', cursor: comment.commenter_id?._id !== currentUserId ? 'pointer' : 'default' }}
                           onClick={() => comment.commenter_id?._id !== currentUserId && goToUser(comment.commenter_id?._id)}
                         >
                           {comment.commenter_id?.username || comment.commenter_id?.email}
                         </span>
-                        <span style={{ color: '#555', fontSize: '0.72rem' }}>{formatDate(comment.createdAt)}</span>
+                        <span style={{ color: '#555', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{formatDate(comment.createdAt)}</span>
                         {comment.commenter_id?._id === currentUserId && (
                           <button
                             onClick={() => handleDeleteComment(comment._id)}
@@ -639,7 +692,7 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                         <img
                           src={comment.gif_url}
                           alt="GIF"
-                          style={{ maxHeight: '150px', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
+                          style={{ maxHeight: '150px', maxWidth: '100%', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
                         />
                       )}
                     </div>
@@ -659,11 +712,18 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, hideLog, onWatchlistChange
                   </button>
                 )}
               </div>
+                </div>
+              )}
             </div>
           </>
         )}
       </div>
     </div>
+
+    {showTrailer && tmdbMovie?.trailer_key && (
+      <TrailerModal trailerKey={tmdbMovie.trailer_key} onClose={() => setShowTrailer(false)} />
+    )}
+    </>
   )
 }
 

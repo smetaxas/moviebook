@@ -65,12 +65,12 @@ function Avatar({ user, size = 40, onClick, expandOnClick = false }) {
         >
           <style>{`@keyframes avatarLightboxFadeIn { from { opacity: 0; } to { opacity: 1; } }`}</style>
 
-          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', maxWidth: '90vw', maxHeight: '85vh' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: 'min(70vw, 380px)', height: 'min(70vw, 380px)' }}>
             <img
               className="avatar-ring"
               src={user.profile_photo}
               alt={user.username || user.email || 'Profile photo'}
-              style={{ maxWidth: '90vw', maxHeight: '85vh', display: 'block', borderRadius: '16px', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', borderRadius: '50%', boxShadow: '0 25px 60px rgba(0,0,0,0.6)' }}
             />
             <button
               onClick={() => setShowFull(false)}

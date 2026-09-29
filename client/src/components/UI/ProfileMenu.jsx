@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import Emoji from './Emoji'
 import Avatar from './Avatar'
+import useIsMobile from '../../hooks/useIsMobile'
 
 const MenuItem = ({ onClick, color = 'white', icon, children }) => {
   const [hover, setHover] = useState(false)
@@ -10,7 +11,7 @@ const MenuItem = ({ onClick, color = 'white', icon, children }) => {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: '100%', padding: '0.6rem 0.75rem',
+        width: '100%', minHeight: '44px', padding: '0.6rem 0.75rem',
         display: 'flex', alignItems: 'center', gap: '0.65rem',
         backgroundColor: hover ? 'rgba(255,255,255,0.07)' : 'transparent',
         color, border: 'none', borderRadius: '10px', cursor: 'pointer', textAlign: 'left', fontSize: '0.88rem', fontWeight: 600,
@@ -27,6 +28,9 @@ const MenuItem = ({ onClick, color = 'white', icon, children }) => {
 function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
   const [open, setOpen] = useState(false)
   const [triggerHover, setTriggerHover] = useState(false)
+  // On mobile the navbar has no room for the expanding username + chevron —
+  // the trigger is just the avatar (name and email are in the dropdown).
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     if (!open) return
@@ -43,13 +47,14 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
         onMouseLeave={() => setTriggerHover(false)}
         style={{
           display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer',
-          padding: '0.3rem 0.75rem 0.3rem 0.3rem', borderRadius: '999px',
+          padding: isMobile ? '2px' : '0.3rem 0.75rem 0.3rem 0.3rem', borderRadius: '999px',
           border: '1px solid ' + (triggerHover || open ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.1)'),
           backgroundColor: triggerHover || open ? 'rgba(255,255,255,0.08)' : 'transparent',
           transition: 'background-color 0.15s, border-color 0.15s'
         }}
       >
-        <Avatar user={user} size={32} onClick={() => setOpen(!open)} />
+        <Avatar user={user} size={isMobile ? 34 : 32} onClick={() => setOpen(!open)} />
+        {!isMobile && (<>
         {/* Grid-template-columns animates 0fr->1fr, which — unlike width — can
             transition smoothly to/from an intrinsic ("auto") size. Anchored to
             the trigger's right edge, growing this reveals the username by
@@ -76,6 +81,7 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
             <path d="M2.5 4.5L6 8L9.5 4.5" stroke={open ? 'white' : '#ccc'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
+        </>)}
       </div>
 
       <div

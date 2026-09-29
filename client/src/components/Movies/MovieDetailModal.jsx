@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import useIsMobile from '../../hooks/useIsMobile'
+import useModalTransition, { modalTransitionKeyframes } from '../../hooks/useModalTransition'
+import { fetchMovie, getCachedMovie } from '../../api/movieCache'
+import { prefetchPerson } from '../../api/personCache'
 import ConfirmModal from '../UI/ConfirmModal'
 import Emoji from '../UI/Emoji'
 import GiphyPicker from '../UI/GiphyPicker'
 import Avatar from '../UI/Avatar'
+import CommunityRating from '../UI/CommunityRating'
+import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
+import TrailerModal from '../UI/TrailerModal'
+import WatchProviderLogos from '../UI/WatchProviderLogos'
+import FadeInImage from '../UI/FadeInImage'
+import { buildNavState } from '../../utils/navState'
 
 const RATING_LABELS = { 1: 'Not for me', 2: 'It was okay', 3: 'Liked it', 4: 'Really liked it', 5: 'Loved it!' }
 
@@ -16,11 +26,11 @@ const StarRating = ({ rating, size = 13 }) => (
   </span>
 )
 
-function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated }) {
+function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated, initialMovie }) {
   const navigate = useNavigate()
   const location = useLocation()
   const [watchedMovie, setWatchedMovie] = useState(null)
-  const [tmdbMovie, setTmdbMovie] = useState(null)
+  const [tmdbMovie, setTmdbMovie] = useState(() => initialMovie?.movie_id ? getCachedMovie(initialMovie.movie_id) : null)
   const [providers, setProviders] = useState(null)
   const [comments, setComments] = useState([])
   const [hasMoreComments, setHasMoreComments] = useState(false)
@@ -30,7 +40,6 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
   const [showGiphy, setShowGiphy] = useState(false)
   const [selectedGif, setSelectedGif] = useState(null)
   const [gifButtonHover, setGifButtonHover] = useState(false)
-  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [rating, setRating] = useState(null)
   const [hoverRating, setHoverRating] = useState(0)
@@ -38,26 +47,47 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
   const [showConfirm, setShowConfirm] = useState(false)
   const [closeHover, setCloseHover] = useState(false)
   const [communityHover, setCommunityHover] = useState(false)
-  const [whereHover, setWhereHover] = useState(false)
+  const [trailerHover, setTrailerHover] = useState(false)
+  const [showTrailer, setShowTrailer] = useState(false)
+  // Same reasoning as TMDBMovieModal: the poster/backdrop overlap below is
+  // tuned in pixels for a desktop-width backdrop, and needs to shrink in
+  // step with a narrower, shorter poster on mobile.
+  const isMobile = useIsMobile()
+  // Grows out of the clicked poster on open, shrinks back into it on close.
+  const { panelRef, overlayStyle, panelStyle, close } = useModalTransition(onClose)
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
 
   const goToUser = (userId) => {
-    navigate(`/user/${userId}`, { state: { backTo: location.pathname, reopenWatchedMovie: watchedMovieId } })
+    navigate(`/user/${userId}`, { state: buildNavState(location, { reopenWatchedMovie: watchedMovieId }) })
+  }
+
+  const goToPerson = (person) => {
+    navigate(`/person/${person.id}?role=${person.role}`, {
+      state: buildNavState(location, {
+        initialPerson: { id: person.id, name: person.name, profile_url: person.profile_url },
+        reopenWatchedMovie: watchedMovieId
+      })
+    })
   }
 
   // "Comments" here are just this log's own thread — the real comment section,
   // with every log from the community, lives in the feed. Send them there.
+  // `returnReopenWatchedMovie` isn't touched by the feed itself — it's
+  // carried through so the feed's own "Back" button can hand it to
+  // `backTo` (this page) and reopen this exact log's modal, the same
+  // "go back and reopen" contract goToPerson/goToUser use.
   const goToCommunityComments = () => {
     navigate('/feed', {
-      state: {
+      state: buildNavState(location, {
         reopenMovie: {
           tmdb_id: watchedMovie.movie_id,
           title: tmdbMovie?.title || watchedMovie.movie_title,
           year: tmdbMovie?.year || watchedMovie.movie_year,
           poster_url: tmdbMovie?.poster_url || watchedMovie.movie_poster
-        }
-      }
+        },
+        returnReopenWatchedMovie: watchedMovieId
+      })
     })
   }
 
@@ -67,6 +97,15 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
 
   const fetchData = async () => {
     try {
+      // If the caller already knows the TMDB id (e.g. from a poster grid
+      // that has the full watched-movie record in hand), start these in
+      // parallel with the watched-log fetch instead of waiting on it.
+      const knownTmdbId = initialMovie?.movie_id
+      const tmdbPromise = knownTmdbId ? fetchMovie(knownTmdbId) : null
+      const providersPromise = knownTmdbId
+        ? api.get(`/movies/tmdb/${knownTmdbId}/providers?title=${encodeURIComponent(initialMovie.movie_title || '')}`)
+        : null
+
       const [watchedRes, commentsRes] = await Promise.all([
         api.get(`/watched/id/${watchedMovieId}`),
         api.get(`/comments/${watchedMovieId}`)
@@ -76,16 +115,15 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
       setComments(commentsRes.data.comments)
       setHasMoreComments(commentsRes.data.hasMore)
 
-      const [tmdbRes, providersRes] = await Promise.all([
-        api.get(`/movies/tmdb/${watchedRes.data.movie_id}`),
-        api.get(`/movies/tmdb/${watchedRes.data.movie_id}/providers`)
+      const tmdbId = knownTmdbId || watchedRes.data.movie_id
+      const [tmdbData, providersRes] = await Promise.all([
+        tmdbPromise || fetchMovie(tmdbId),
+        providersPromise || api.get(`/movies/tmdb/${tmdbId}/providers?title=${encodeURIComponent(watchedRes.data.movie_title || '')}`)
       ])
-      setTmdbMovie(tmdbRes.data)
+      setTmdbMovie(tmdbData)
       setProviders(providersRes.data.providers)
     } catch (err) {
       setError('Failed to load movie details')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -105,7 +143,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
     try {
       await api.delete(`/watched/${watchedMovieId}`)
       onDeleted && onDeleted()
-      onClose()
+      close()
     } catch (err) {
       setError('Failed to delete movie')
     }
@@ -146,7 +184,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
         // That was the last comment on this unrated log — the log itself
         // just got deleted server-side too, so there's nothing left to show.
         onDeleted && onDeleted()
-        onClose()
+        close()
         return
       }
       setComments(prev => prev.filter(c => c._id !== commentId))
@@ -162,16 +200,16 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
   }
 
   const isOwner = watchedMovie?.user_id === currentUserId || watchedMovie?.user_id?._id === currentUserId
-  const imdbScore = tmdbMovie?.ratings?.imdb ? parseFloat(tmdbMovie.ratings.imdb) : null
-  const rtScore = tmdbMovie?.ratings?.rotten_tomatoes ? parseInt(tmdbMovie.ratings.rotten_tomatoes, 10) : null
-  const metaScore = tmdbMovie?.ratings?.metacritic ? parseInt(tmdbMovie.ratings.metacritic, 10) : null
-  const metaColor = metaScore == null ? '#888' : metaScore >= 61 ? '#6c3' : metaScore >= 40 ? '#fc3' : '#f33'
   const displayRating = hoverRating || rating || 0
 
   const metaLine = tmdbMovie
-    ? [tmdbMovie.director, tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, tmdbMovie.release_date ? formatDate(tmdbMovie.release_date) : null]
+    ? [tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, tmdbMovie.release_date ? formatDate(tmdbMovie.release_date) : null]
         .filter(Boolean)
     : []
+
+  // Renders the header immediately from whatever the caller already knew
+  // (poster grid item) before the real fetch resolves, same as TMDBMovieModal.
+  const display = watchedMovie || initialMovie || {}
 
   return (
     <>
@@ -182,25 +220,22 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
         backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         display: 'flex', justifyContent: 'center', alignItems: 'center',
         zIndex: 2000, padding: '1rem',
-        animation: 'movieModalFadeIn 0.2s ease'
+        ...overlayStyle
       }}>
         <style>{`
-          @keyframes movieModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
-          @keyframes movieModalPopIn {
-            from { opacity: 0; transform: translateY(16px) scale(0.97); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
-          }
+          ${modalTransitionKeyframes}
+          @keyframes movieContentFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
 
-        <div style={{
+        <div ref={panelRef} style={{
           backgroundColor: '#1a1a1a', borderRadius: '16px',
           width: '100%', maxWidth: '980px',
-          maxHeight: '90vh', overflowY: 'auto', overflowX: 'hidden',
+          maxHeight: '90dvh', overflowY: 'auto', overflowX: 'hidden',
           position: 'relative', boxShadow: '0 25px 60px rgba(0,0,0,0.7)',
-          animation: 'movieModalPopIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
+          ...panelStyle
         }}>
           <button
-            onClick={onClose}
+            onClick={close}
             onMouseEnter={() => setCloseHover(true)}
             onMouseLeave={() => setCloseHover(false)}
             style={{
@@ -217,21 +252,17 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
             ✕
           </button>
 
-          {loading && (
-            <div style={{ textAlign: 'center', padding: '3rem' }}>
-              <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0', animation: 'pulse 1.4s ease-in-out infinite' }}><Emoji>🎬</Emoji></p>
-              <p style={{ color: '#888', margin: 0, fontSize: '0.9rem' }}>Loading movie details...</p>
-              <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
-            </div>
-          )}
           {error && <p style={{ color: '#dc3c4f', padding: '2rem' }}>{error}</p>}
 
-          {watchedMovie && (
+          {/* Header renders immediately from initialMovie/watchedMovie
+              (whichever is available) rather than waiting on the full
+              fetch — everything below fills in smoothly as it resolves. */}
+          {!error && (
             <>
               {/* Backdrop */}
               <div style={{ position: 'relative', width: '100%', aspectRatio: '16 / 9', backgroundColor: '#000', borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
                 {tmdbMovie?.backdrop_url && (
-                  <img
+                  <FadeInImage
                     src={tmdbMovie.backdrop_url}
                     alt=""
                     style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center' }}
@@ -241,88 +272,77 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                   position: 'absolute', inset: 0,
                   background: 'linear-gradient(to bottom, rgba(10,10,10,0.1) 0%, rgba(10,10,10,0.75) 65%, #1a1a1a 100%)'
                 }} />
+                {tmdbMovie?.trailer_key && (
+                  <button
+                    onClick={() => setShowTrailer(true)}
+                    onMouseEnter={() => setTrailerHover(true)}
+                    onMouseLeave={() => setTrailerHover(false)}
+                    aria-label="Play trailer"
+                    style={{
+                      position: 'absolute', top: '50%', left: '50%', transform: trailerHover ? 'translate(-50%, -50%) scale(1.08)' : 'translate(-50%, -50%) scale(1)',
+                      width: isMobile ? '56px' : '72px', height: isMobile ? '56px' : '72px', borderRadius: '50%',
+                      backgroundColor: trailerHover ? '#b31f2f' : 'rgba(0,0,0,0.55)',
+                      border: '2px solid ' + (trailerHover ? '#b31f2f' : 'rgba(255,255,255,0.6)'),
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      cursor: 'pointer', boxShadow: trailerHover ? '0 8px 26px rgba(179,31,47,0.55)' : '0 4px 18px rgba(0,0,0,0.5)',
+                      transition: 'background-color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s'
+                    }}
+                  >
+                    <span style={{
+                      display: 'block', width: 0, height: 0, marginLeft: '5px',
+                      borderTop: '13px solid transparent', borderBottom: '13px solid transparent',
+                      borderLeft: '21px solid white'
+                    }} />
+                  </button>
+                )}
               </div>
 
-              {/* Poster + title, overlapping the backdrop */}
-              <div style={{ display: 'flex', gap: '1.5rem', padding: '0 2rem', marginTop: '-130px', position: 'relative', zIndex: 2 }}>
-                {watchedMovie.movie_poster && (
+              {/* Poster + title, overlapping the backdrop. Overlap and
+                  paddingTop are tuned together to the poster's height, so
+                  both scale down on mobile — see TMDBMovieModal for why. */}
+              <div style={{
+                display: 'flex', gap: isMobile ? '1rem' : '1.5rem',
+                padding: isMobile ? '0 1rem' : '0 2rem',
+                marginTop: isMobile ? '-80px' : '-130px',
+                position: 'relative', zIndex: 2
+              }}>
+                {display.movie_poster && (
                   <img
-                    src={watchedMovie.movie_poster}
-                    alt={watchedMovie.movie_title}
-                    style={{ width: '160px', flexShrink: 0, borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 30px rgba(0,0,0,0.6)' }}
+                    src={display.movie_poster}
+                    alt={display.movie_title}
+                    style={{ width: isMobile ? '100px' : '160px', flexShrink: 0, borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 12px 30px rgba(0,0,0,0.6)' }}
                   />
                 )}
-                <div style={{ flex: 1, paddingTop: '132px', minWidth: 0 }}>
-                  <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: '1.6rem', fontWeight: '800' }}>
-                    {watchedMovie.movie_title} <span style={{ color: '#aaa', fontWeight: '400' }}>({watchedMovie.movie_year})</span>
+                <div style={{ flex: 1, paddingTop: isMobile ? '82px' : '132px', minWidth: 0 }}>
+                  <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800' }}>
+                    {display.movie_title} <span style={{ color: '#aaa', fontWeight: '400' }}>({display.movie_year})</span>
                   </h2>
-                  {metaLine.length > 0 && (
+                  {(metaLine.length > 0 || tmdbMovie?.director) && (
                     <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>
+                      {tmdbMovie?.director && (
+                        <>
+                          <span
+                            onClick={() => tmdbMovie.director.id && goToPerson(tmdbMovie.director)}
+                            style={{ cursor: tmdbMovie.director.id ? 'pointer' : 'default', transition: 'color 0.15s' }}
+                            onMouseEnter={e => { if (tmdbMovie.director.id) { e.currentTarget.style.color = '#dc3c4f'; prefetchPerson(tmdbMovie.director.id, tmdbMovie.director.role) } }}
+                            onMouseLeave={e => { e.currentTarget.style.color = '#aaa' }}
+                          >
+                            {tmdbMovie.director.name}
+                          </span>
+                          {metaLine.length > 0 && '  ·  '}
+                        </>
+                      )}
                       {metaLine.join('  ·  ')}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div style={{ padding: '1.5rem 2rem 2rem 2rem' }}>
-                {tmdbMovie && (
-                  <>
+              <div style={{ padding: isMobile ? '1.25rem 1rem 1.5rem 1rem' : '1.5rem 2rem 2rem 2rem' }}>
+                {!tmdbMovie ? <MovieDetailsSkeleton /> : (
+                  <div style={{ animation: 'movieContentFadeIn 0.35s ease' }}>
                     {/* Ratings */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                      {tmdbMovie.imdb_id && (
-                        <a
-                          href={`https://www.imdb.com/title/${tmdbMovie.imdb_id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.35rem 0.7rem',
-                            backgroundColor: imdbScore != null ? 'rgba(245,197,24,0.12)' : 'transparent',
-                            border: '1px solid rgba(245,197,24,0.45)',
-                            borderRadius: '6px', color: '#f5c518', textDecoration: 'none',
-                            fontWeight: '700', fontSize: '0.85rem'
-                          }}
-                        >
-                          <span style={{ backgroundColor: '#f5c518', color: '#000', borderRadius: '3px', padding: '0 4px', fontSize: '0.7rem' }}>IMDb</span>
-                          {imdbScore != null ? `${imdbScore.toFixed(1)}/10` : 'N/A'}
-                        </a>
-                      )}
-                      <a
-                        href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(tmdbMovie.title)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                          padding: '0.35rem 0.7rem',
-                          backgroundColor: rtScore == null ? 'transparent' : (rtScore >= 60 ? 'rgba(250,50,10,0.12)' : 'rgba(112,168,80,0.12)'),
-                          border: '1px solid ' + (rtScore == null ? 'rgba(255,255,255,0.15)' : (rtScore >= 60 ? 'rgba(250,50,10,0.45)' : 'rgba(112,168,80,0.45)')),
-                          borderRadius: '6px', color: rtScore == null ? '#888' : (rtScore >= 60 ? '#fa320a' : '#70a850'),
-                          textDecoration: 'none', fontWeight: '700', fontSize: '0.85rem'
-                        }}
-                      >
-                        <Emoji>{rtScore == null ? '🍅' : (rtScore >= 60 ? '🍅' : '🤢')}</Emoji> {rtScore != null ? `${rtScore}%` : 'N/A'}
-                      </a>
-                      {metaScore != null && (
-                        <a
-                          href={`https://www.metacritic.com/search/${encodeURIComponent(tmdbMovie.title)}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.35rem 0.7rem',
-                            backgroundColor: 'rgba(255,255,255,0.05)',
-                            border: '1px solid rgba(255,255,255,0.15)',
-                            borderRadius: '6px', color: '#ddd', textDecoration: 'none',
-                            fontWeight: '700', fontSize: '0.85rem'
-                          }}
-                        >
-                          <span style={{ backgroundColor: metaColor, color: '#000', borderRadius: '3px', padding: '0 5px', fontSize: '0.75rem', fontWeight: '800' }}>
-                            {metaScore}
-                          </span>
-                          Metacritic
-                        </a>
-                      )}
-                    </div>
+                    <CommunityRating average={tmdbMovie.communityRating?.average} count={tmdbMovie.communityRating?.count || 0} />
 
                     {tmdbMovie.description && (
                       <p style={{ color: 'white', margin: '0 0 1.25rem 0', fontSize: '0.9rem', lineHeight: '1.6' }}>
@@ -335,70 +355,51 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                       <div style={{ marginBottom: '1.5rem' }}>
                         <h4 style={{ color: 'white', margin: '0 0 0.75rem 0', fontSize: '0.95rem' }}>Cast</h4>
                         <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
-                          {tmdbMovie.cast.map((member, i) => (
-                            <div key={i} style={{ flexShrink: 0, width: '76px', textAlign: 'center' }}>
-                              {member.profile_url ? (
-                                <img
-                                  src={member.profile_url}
-                                  alt={member.name}
-                                  style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', marginBottom: '0.4rem' }}
-                                />
-                              ) : (
-                                <div style={{
-                                  width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#333',
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  color: '#aaa', fontWeight: '700', fontSize: '1.2rem', lineHeight: 1, margin: '0 auto 0.4rem auto'
-                                }}>
-                                  {member.name?.[0]?.toUpperCase() || '?'}
-                                </div>
-                              )}
-                              <p style={{ color: 'white', fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: '600', lineHeight: '1.2' }}>{member.name}</p>
-                              <p style={{ color: '#888', fontSize: '0.7rem', margin: 0, lineHeight: '1.2' }}>{member.character}</p>
-                            </div>
-                          ))}
+                          {tmdbMovie.cast.map((member, i) => {
+                            const clickable = Boolean(member.id)
+                            return (
+                              <div
+                                key={i}
+                                onClick={() => clickable && goToPerson(member)}
+                                style={{ flexShrink: 0, width: '76px', textAlign: 'center', cursor: clickable ? 'pointer' : 'default' }}
+                              >
+                                {member.profile_url ? (
+                                  <img
+                                    src={member.profile_url}
+                                    alt={member.name}
+                                    style={{
+                                      width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover', marginBottom: '0.4rem',
+                                      border: '2px solid transparent', transition: 'transform 0.15s, border-color 0.15s'
+                                    }}
+                                    onMouseEnter={e => { if (clickable) { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.borderColor = '#dc3c4f'; prefetchPerson(member.id, member.role) } }}
+                                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.borderColor = 'transparent' }}
+                                  />
+                                ) : (
+                                  <div style={{
+                                    width: '64px', height: '64px', borderRadius: '50%', backgroundColor: '#333',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    color: '#aaa', fontWeight: '700', fontSize: '1.2rem', lineHeight: 1, margin: '0 auto 0.4rem auto'
+                                  }}>
+                                    {member.name?.[0]?.toUpperCase() || '?'}
+                                  </div>
+                                )}
+                                <p style={{ color: 'white', fontSize: '0.75rem', margin: '0 0 0.15rem 0', fontWeight: '600', lineHeight: '1.2' }}>{member.name}</p>
+                                <p style={{ color: '#888', fontSize: '0.7rem', margin: 0, lineHeight: '1.2' }}>{member.character}</p>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}
 
-                    {/* Where to Watch — one click, straight through. Uses the JustWatch/TMDB
-                        link when we have regional availability data, otherwise falls back to
-                        a Google search — but either way it's a single <a>, not a button that
-                        opens something else you then have to click again. */}
                     <div style={{ marginBottom: '1.5rem' }}>
-                      <a
-                        href={
-                          providers && (providers.flatrate?.length || providers.rent?.length || providers.buy?.length)
-                            ? providers.link
-                            : `https://www.google.com/search?q=where+to+watch+${encodeURIComponent(watchedMovie.movie_title)}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onMouseEnter={() => setWhereHover(true)}
-                        onMouseLeave={() => setWhereHover(false)}
-                        style={{
-                          display: 'inline-flex', alignItems: 'center', gap: '0.6rem',
-                          padding: '0.6rem 1.25rem 0.6rem 1rem',
-                          backgroundColor: whereHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
-                          border: '1px solid ' + (whereHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
-                          borderRadius: '6px', color: 'white', textDecoration: 'none', fontWeight: '600', fontSize: '0.85rem',
-                          boxShadow: whereHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
-                          transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
-                        }}
-                      >
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                          width: '20px', height: '20px', borderRadius: '50%',
-                          backgroundColor: whereHover ? 'white' : '#b31f2f',
-                          fontSize: '0.65rem', flexShrink: 0, transition: 'background-color 0.15s'
-                        }}>
-                          📺
-                        </span>
-                        Where to Watch
-                      </a>
+                      <WatchProviderLogos providers={providers} title={tmdbMovie.title || display.movie_title} releaseDate={tmdbMovie.release_date} />
                     </div>
-                  </>
+                  </div>
                 )}
 
+                {!watchedMovie ? <MovieDetailsSkeleton /> : (
+                <div style={{ animation: 'movieContentFadeIn 0.35s ease' }}>
                 {/* Rating panel */}
                 <div style={{
                   position: 'relative', overflow: 'hidden',
@@ -469,8 +470,8 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
 
                 <hr style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.08)', marginBottom: '1.5rem' }} />
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', margin: '0 0 1rem 0' }}>
-                  <h3 style={{ color: 'white', margin: 0, fontSize: '1rem', fontWeight: 800 }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem', margin: '0 0 1rem 0' }}>
+                  <h3 style={{ color: 'white', margin: 0, fontSize: '1rem', fontWeight: 800, whiteSpace: 'nowrap' }}><Emoji>💬</Emoji> Comments ({comments.length})</h3>
                   <button
                     onClick={goToCommunityComments}
                     onMouseEnter={() => setCommunityHover(true)}
@@ -480,7 +481,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                       padding: '0.4rem 0.9rem 0.4rem 0.4rem',
                       backgroundColor: communityHover ? '#b31f2f' : 'rgba(179,31,47,0.12)',
                       border: '1px solid ' + (communityHover ? '#b31f2f' : 'rgba(179,31,47,0.5)'),
-                      borderRadius: '999px', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem',
+                      borderRadius: '999px', color: 'white', cursor: 'pointer', fontWeight: '700', fontSize: '0.78rem', whiteSpace: 'nowrap',
                       boxShadow: communityHover ? '0 4px 14px rgba(179,31,47,0.4)' : 'none',
                       transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
                     }}
@@ -499,7 +500,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
 
                 {selectedGif && (
                   <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
-                    <img src={selectedGif} alt="Selected GIF" style={{ maxHeight: '120px', borderRadius: '10px', display: 'block' }} />
+                    <img src={selectedGif} alt="Selected GIF" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', display: 'block' }} />
                     <button
                       type="button"
                       onClick={() => setSelectedGif(null)}
@@ -516,7 +517,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                   </div>
                 )}
 
-                <form onSubmit={handleAddComment} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                <form onSubmit={handleAddComment} style={{ position: 'relative', display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
                   <input
                     type="text"
                     value={newComment}
@@ -526,7 +527,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                     placeholder="Add a comment..."
                     maxLength={500}
                     style={{
-                      flex: 1, padding: '0.6rem 0.9rem', borderRadius: '999px',
+                      flex: 1, minWidth: 0, padding: '0.6rem 0.9rem', borderRadius: '999px',
                       border: '1px solid ' + (commentFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
                       backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem',
                       boxShadow: commentFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
@@ -534,7 +535,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                     }}
                   />
 
-                  <div style={{ position: 'relative' }}>
+                  <div>
                     <button
                       type="button"
                       onClick={() => setShowGiphy(v => !v)}
@@ -546,7 +547,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                         backgroundColor: showGiphy || gifButtonHover ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
                         color: 'white',
                         border: '1px solid ' + (showGiphy ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
-                        borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem',
+                        borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0,
                         transition: 'background-color 0.15s, border-color 0.15s'
                       }}
                     >
@@ -556,6 +557,8 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                       <GiphyPicker
                         onSelect={(url) => { setSelectedGif(url); setShowGiphy(false) }}
                         onClose={() => setShowGiphy(false)}
+                        // Anchored to the form, so never wider than it.
+                        style={{ width: 'min(320px, 100%)' }}
                       />
                     )}
                   </div>
@@ -564,7 +567,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                     type="submit"
                     disabled={!newComment.trim() && !selectedGif}
                     style={{
-                      padding: '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none',
+                      padding: isMobile ? '0.6rem 1rem' : '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', flexShrink: 0,
                       borderRadius: '999px', cursor: (newComment.trim() || selectedGif) ? 'pointer' : 'default', fontWeight: '700', fontSize: '0.85rem',
                       opacity: (newComment.trim() || selectedGif) ? 1 : 0.45, transition: 'opacity 0.15s'
                     }}
@@ -581,15 +584,15 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                         size={32}
                         onClick={comment.commenter_id?._id !== currentUserId ? () => goToUser(comment.commenter_id?._id) : undefined}
                       />
-                      <div style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                      <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '0.5rem', rowGap: '0.1rem', marginBottom: '0.2rem' }}>
                           <span
                             style={{ fontWeight: '700', fontSize: '0.85rem', color: 'white', cursor: comment.commenter_id?._id !== currentUserId ? 'pointer' : 'default' }}
                             onClick={() => comment.commenter_id?._id !== currentUserId && goToUser(comment.commenter_id?._id)}
                           >
                             {comment.commenter_id?.username || comment.commenter_id?.email}
                           </span>
-                          <span style={{ color: '#555', fontSize: '0.72rem' }}>{formatDate(comment.createdAt)}</span>
+                          <span style={{ color: '#555', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{formatDate(comment.createdAt)}</span>
                           {comment.commenter_id?._id === currentUserId && (
                             <button
                               onClick={() => handleDeleteComment(comment._id)}
@@ -614,7 +617,7 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                           <img
                             src={comment.gif_url}
                             alt="GIF"
-                            style={{ maxHeight: '150px', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
+                            style={{ maxHeight: '150px', maxWidth: '100%', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
                           />
                         )}
                       </div>
@@ -634,6 +637,8 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
                     </button>
                   )}
                 </div>
+                </div>
+                )}
               </div>
             </>
           )}
@@ -649,6 +654,10 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated 
           onConfirm={handleDelete}
           onCancel={() => setShowConfirm(false)}
         />
+      )}
+
+      {showTrailer && tmdbMovie?.trailer_key && (
+        <TrailerModal trailerKey={tmdbMovie.trailer_key} onClose={() => setShowTrailer(false)} />
       )}
     </>
   )

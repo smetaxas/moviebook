@@ -27,6 +27,10 @@ const watchedMovieSchema = new mongoose.Schema({
   movie_genres: {
     type: [String]
   },
+  // Same lazy-backfill deal as movie_genres, for the top-directors stat.
+  movie_director: {
+    type: String
+  },
   // Optional: a log can exist without a rating when it's created implicitly
   // by commenting on an unwatched movie rather than through the rate/log flow.
   rating: {

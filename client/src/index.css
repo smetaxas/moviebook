@@ -5,6 +5,27 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+:root {
+  /* Navbar height — the single source of truth for anything that has to
+     sit below the sticky navbar (e.g. the genre sidebar's sticky offset). */
+  --nav-h: 84px;
+
+  /* Fluid sizes: full size on desktop, shrinking smoothly on phones
+     instead of snapping at a breakpoint. */
+  --page-pad: clamp(1rem, 4vw, 2rem);    /* page content gutter */
+  --card-pad: clamp(1.5rem, 6vw, 2.5rem); /* auth / form cards */
+  /* Poster grid column minimum: 150px on desktop, ~100px on a phone so
+     three posters fit per row instead of two with a big gap. */
+  --poster-min: clamp(96px, 26vw, 150px);
+}
+
+/* Same breakpoint as MOBILE_BREAKPOINT in hooks/useIsMobile.js */
+@media (width < 768px) {
+  :root {
+    --nav-h: 64px;
+  }
+}
+
 body {
   background-color: #0a0a0a;
   color: white;
@@ -21,22 +42,8 @@ button {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
-button:hover {
-  transform: scale(1.05);
-  filter: brightness(1.2);
-}
-
-button:active {
-  transform: scale(0.97);
-}
-
 img {
   transition: transform 0.2s, filter 0.2s;
-}
-
-img:hover {
-  transform: scale(1.05);
-  filter: brightness(1.1);
 }
 
 img.emoji {
@@ -46,26 +53,9 @@ img.emoji {
   margin: 0 0.03em;
 }
 
-img.emoji:hover {
-  transform: none;
-  filter: none;
-}
-
-/* Ring avatars: scaling on hover makes the thin gradient ring look
-   unevenly clipped, so these opt out of the generic img zoom and get
-   a brightness-only hover cue instead (no size change, nothing to clip). */
-img.avatar-ring:hover {
-  transform: none;
-  filter: brightness(1.12);
-}
-
 a {
   transition: opacity 0.2s;
   font-family: 'Inter', system-ui, sans-serif;
-}
-
-a:hover {
-  opacity: 0.8;
 }
 
 input, textarea {
@@ -82,6 +72,45 @@ span[style*="cursor: pointer"] {
   transition: opacity 0.2s;
 }
 
-span[style*="cursor: pointer"]:hover {
-  opacity: 0.8;
+/* Hover effects only on devices with a real pointer. On touchscreens a tap
+   triggers :hover and it then sticks until you tap somewhere else, leaving
+   buttons and posters stuck zoomed in. (button:active below stays global,
+   so taps still get press feedback.) */
+@media (hover: hover) {
+  button:hover {
+    transform: scale(1.05);
+    filter: brightness(1.2);
+  }
+
+  img:hover {
+    transform: scale(1.05);
+    filter: brightness(1.1);
+  }
+
+  img.emoji:hover {
+    transform: none;
+    filter: none;
+  }
+
+  /* Ring avatars: scaling on hover makes the thin gradient ring look
+     unevenly clipped, so these opt out of the generic img zoom and get
+     a brightness-only hover cue instead (no size change, nothing to clip). */
+  img.avatar-ring:hover {
+    transform: none;
+    filter: brightness(1.12);
+  }
+
+  a:hover {
+    opacity: 0.8;
+  }
+
+  span[style*="cursor: pointer"]:hover {
+    opacity: 0.8;
+  }
+}
+
+/* After the hover block so pressing still wins over hover on desktop
+   (same specificity, so source order decides). */
+button:active {
+  transform: scale(0.97);
 }

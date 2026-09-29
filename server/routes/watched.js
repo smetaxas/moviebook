@@ -52,6 +52,22 @@ router.get('/stats', requireAuth, async (req, res) => {
       }
     }));
 
+    // Same lazy-backfill deal for director, sourced from the movie's credits.
+    const missingDirectors = watchedMovies.filter(m => !m.movie_director);
+    await Promise.all(missingDirectors.map(async (movie) => {
+      try {
+        const res = await fetch(`https://api.themoviedb.org/3/movie/${movie.movie_id}/credits?api_key=${process.env.TMDB_API_KEY}`);
+        const data = await res.json();
+        const director = data.crew?.find(member => member.job === 'Director');
+        if (director) {
+          movie.movie_director = director.name;
+          await movie.save();
+        }
+      } catch (err) {
+        // Leave movie_director unset so this retries on the next stats request.
+      }
+    }));
+
     const totalMovies = watchedMovies.length;
 
     const totalMinutes = watchedMovies.reduce((acc, movie) => acc + (movie.movie_runtime || 100), 0);
@@ -61,6 +77,11 @@ router.get('/stats', requireAuth, async (req, res) => {
     const avgRating = ratings.length > 0
       ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1)
       : 0;
+
+    const ratingDistribution = [1, 2, 3, 4, 5].reduce((acc, star) => {
+      acc[star] = ratings.filter(r => r === star).length
+      return acc
+    }, {})
 
     const moviesPerYear = watchedMovies.reduce((acc, movie) => {
       const year = movie.movie_year || 'Unknown'
@@ -82,6 +103,16 @@ router.get('/stats', requireAuth, async (req, res) => {
       return acc
     }, {})
 
+    const directorCounts = watchedMovies.reduce((acc, movie) => {
+      if (!movie.movie_director) return acc
+      acc[movie.movie_director] = (acc[movie.movie_director] || 0) + 1
+      return acc
+    }, {})
+    const topDirectors = Object.entries(directorCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({ name, count }))
+
     const currentYear = new Date().getFullYear()
     const moviesPerMonth = Array(12).fill(0)
     watchedMovies.forEach(movie => {
@@ -98,7 +129,9 @@ router.get('/stats', requireAuth, async (req, res) => {
       moviesPerYear,
       moviesPerDecade,
       moviesPerGenre,
-      moviesPerMonth
+      moviesPerMonth,
+      ratingDistribution,
+      topDirectors
     })
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

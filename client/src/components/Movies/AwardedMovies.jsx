@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
 import TMDBMovieModal from './TMDBMovieModal'
 import LogMovieModal from './LogMovieModal'
@@ -8,6 +8,8 @@ import NavButton from '../UI/NavButton'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Select from '../UI/Select'
 import Emoji from '../UI/Emoji'
+import { prefetchMovie } from '../../api/movieCache'
+import { resumeAfter } from '../../utils/navState'
 
 const AWARD_ICONS = { oscars: '🏆', globes: '🌐', bafta: '🎭' }
 
@@ -25,7 +27,7 @@ const YEAR_OPTIONS = Array.from({ length: currentYear - 1920 + 1 }, (_, i) => cu
 const MovieGrid = ({ movies, onClick }) => (
   <div style={{
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))',
     gap: '1rem', marginBottom: '2rem',
     animation: 'fadeIn 0.3s ease'
   }}>
@@ -40,7 +42,7 @@ const MovieGrid = ({ movies, onClick }) => (
         key={movie.tmdb_id || i}
         onClick={() => onClick(movie)}
         style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.tmdb_id) }}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
         {movie.poster_url ? (
@@ -75,9 +77,20 @@ function AwardedMovies() {
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [movieToLog, setMovieToLog] = useState(null)
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     api.get('/movies/awards-meta').then(res => setAwardsMeta(res.data)).catch(() => {})
+  }, [])
+
+  // Arriving back here after "Go Back" from a cast/director page —
+  // reopen the movie modal we came from.
+  useEffect(() => {
+    if (location.state?.reopenMovieDetails && !location.state?.backTo) {
+      setSelectedMovie(location.state.reopenMovieDetails)
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -141,7 +154,7 @@ function AwardedMovies() {
         </NavButton>
       </Navbar>
 
-      <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{
           position: 'relative', overflow: 'hidden',
           background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',

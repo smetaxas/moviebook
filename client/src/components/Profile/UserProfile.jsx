@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import { prefetchMovie } from '../../api/movieCache'
+import { resumeAfter } from '../../utils/navState'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
 import LogMovieModal from '../Movies/LogMovieModal'
@@ -10,11 +12,12 @@ import Navbar from '../UI/Navbar'
 import NavButton from '../UI/NavButton'
 import Avatar from '../UI/Avatar'
 import UserNotFound from '../UserNotFound'
+import useIsMobile from '../../hooks/useIsMobile'
 
 const MovieGrid = ({ movies, onClick }) => (
   <div style={{
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))',
     gap: '1rem', marginBottom: '2rem',
     animation: 'fadeIn 0.3s ease'
   }}>
@@ -29,7 +32,7 @@ const MovieGrid = ({ movies, onClick }) => (
         key={movie._id || i}
         onClick={() => onClick(movie)}
         style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.movie_id || movie.tmdb_id) }}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
         {movie.movie_poster ? (
@@ -48,17 +51,21 @@ const MovieGrid = ({ movies, onClick }) => (
   </div>
 )
 
-const StatTile = ({ count, label, icon }) => (
+// compact: the mobile header fits all three tiles in one row, so they drop
+// the fixed min-width and the corner icon (which would overlap the number).
+const StatTile = ({ count, label, icon, compact = false }) => (
   <div style={{
     textAlign: 'center', position: 'relative',
     backgroundColor: 'rgba(255,255,255,0.03)',
     border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '14px', padding: '0.9rem 1.5rem',
-    minWidth: '112px'
+    borderRadius: '14px', padding: compact ? '0.75rem 0.35rem' : '0.9rem 1.5rem',
+    minWidth: compact ? 0 : '112px'
   }}>
-    <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: 0.45 }}><Emoji>{icon}</Emoji></span>
-    <p style={{ fontSize: '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: 'white' }}>{count}</p>
-    <p style={{ color: '#999', margin: '0.4rem 0 0 0', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</p>
+    {!compact && (
+      <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: 0.45 }}><Emoji>{icon}</Emoji></span>
+    )}
+    <p style={{ fontSize: compact ? '1.45rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: 'white' }}>{count}</p>
+    <p style={{ color: '#999', margin: '0.4rem 0 0 0', fontSize: compact ? '0.62rem' : '0.72rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</p>
   </div>
 )
 
@@ -74,6 +81,7 @@ function UserProfile() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const isMobile = useIsMobile()
 
   const goBack = () => {
     const { backTo, ...reopenState } = location.state || {}
@@ -98,8 +106,11 @@ function UserProfile() {
   // something to act on immediately.
   useEffect(() => {
     if (location.state?.reopenWatchedMovie && !location.state?.backTo) {
-      setSelectedWatchedMovie(location.state.reopenWatchedMovie)
-      navigate(location.pathname, { replace: true, state: null })
+      setSelectedWatchedMovie({ _id: location.state.reopenWatchedMovie })
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    } else if (location.state?.reopenMovieDetails && !location.state?.backTo) {
+      setSelectedWatchlistMovie(location.state.reopenMovieDetails)
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -157,14 +168,14 @@ function UserProfile() {
         </NavButton>
       </Navbar>
 
-      <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>
 
         {/* Profile Info */}
         <div style={{
           position: 'relative', overflow: 'hidden',
           background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
           border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-          padding: '1.75rem 2.25rem', marginBottom: '2rem',
+          padding: isMobile ? '1.5rem 1rem 1rem' : '1.75rem 2.25rem', marginBottom: isMobile ? '1.5rem' : '2rem',
           boxShadow: '0 8px 28px rgba(0,0,0,0.35)'
         }}>
           <div style={{
@@ -172,43 +183,52 @@ function UserProfile() {
             background: 'radial-gradient(circle, rgba(179,31,47,0.28) 0%, transparent 70%)', pointerEvents: 'none'
           }} />
 
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1.75rem' }}>
+          <div style={{
+            position: 'relative', display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            alignItems: 'center', textAlign: isMobile ? 'center' : 'left',
+            gap: isMobile ? '1rem' : '1.75rem'
+          }}>
             <div style={{ flexShrink: 0, borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
-              <Avatar user={user} size={92} expandOnClick />
+              <Avatar user={user} size={isMobile ? 84 : 92} expandOnClick />
             </div>
 
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <h2 style={{ margin: '0 0 0.35rem 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}>{user.username || user.email}</h2>
-              <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <div style={{ flex: isMobile ? 'none' : 1, minWidth: 0, maxWidth: '100%' }}>
+              <h2 style={{ margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.4rem' : '1.6rem', fontWeight: 800, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>{user.username || user.email}</h2>
+              <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.4rem' }}>
                 <Emoji>📅</Emoji> Member since {formatDate(user.createdAt)}
               </p>
             </div>
 
-            <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
+            {!isMobile && (
+              <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
+            )}
 
-            <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
-              <StatTile count={watchedMovies.length} label="Movies Watched" icon="🎬" />
-              <StatTile count={watchlist.length} label="To Watch" icon="🎯" />
-              <StatTile count={favorites.length} label="Favorites" icon="❤️" />
+            <div style={isMobile
+              ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', width: '100%' }
+              : { display: 'flex', gap: '1rem', flexShrink: 0 }}>
+              <StatTile count={watchedMovies.length} label={isMobile ? 'Watched' : 'Movies Watched'} icon="🎬" compact={isMobile} />
+              <StatTile count={watchlist.length} label="To Watch" icon="🎯" compact={isMobile} />
+              <StatTile count={favorites.length} label="Favorites" icon="❤️" compact={isMobile} />
             </div>
           </div>
         </div>
 
         {/* Watched Movies */}
-        <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>Watched Movies</h3>
+        <h3 style={{ marginBottom: isMobile ? '0.85rem' : '1rem', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>🎬</Emoji> Watched Movies</h3>
         {watchedMovies.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '2rem' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '2rem' }}>
             <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>🎬</Emoji></p>
             <p style={{ color: '#999', margin: 0 }}>No watched movies yet.</p>
           </div>
         ) : (
-          <MovieGrid movies={watchedMovies} onClick={(movie) => setSelectedWatchedMovie(movie._id)} />
+          <MovieGrid movies={watchedMovies} onClick={setSelectedWatchedMovie} />
         )}
 
         {/* Watchlist */}
-        <h3 style={{ margin: '2rem 0 1rem 0', fontSize: '1.2rem' }}><Emoji>🎯</Emoji> Movies to Watch</h3>
+        <h3 style={{ margin: isMobile ? '1.5rem 0 0.85rem 0' : '2rem 0 1rem 0', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>🎯</Emoji> Movies to Watch</h3>
         {watchlist.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>🎯</Emoji></p>
             <p style={{ color: '#999', margin: 0 }}>No movies in the watchlist yet.</p>
           </div>
@@ -225,9 +245,9 @@ function UserProfile() {
         )}
 
         {/* Favorites */}
-        <h3 style={{ margin: '2rem 0 1rem 0', fontSize: '1.2rem' }}><Emoji>❤️</Emoji> Favorite Movies</h3>
+        <h3 style={{ margin: isMobile ? '1.5rem 0 0.85rem 0' : '2rem 0 1rem 0', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>❤️</Emoji> Favorite Movies</h3>
         {favorites.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>❤️</Emoji></p>
             <p style={{ color: '#999', margin: 0 }}>No favorite movies yet.</p>
           </div>
@@ -248,7 +268,8 @@ function UserProfile() {
 
       {selectedWatchedMovie && (
         <MovieDetailModal
-          watchedMovieId={selectedWatchedMovie}
+          watchedMovieId={selectedWatchedMovie._id}
+          initialMovie={selectedWatchedMovie}
           onClose={() => setSelectedWatchedMovie(null)}
         />
       )}

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
+import useIsMobile from '../../hooks/useIsMobile'
 import ReCAPTCHA from 'react-google-recaptcha'
 import Emoji from '../UI/Emoji'
 import AuthField from './AuthField'
@@ -41,6 +42,7 @@ function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState('')
   const [captchaToken, setCaptchaToken] = useState(null)
+  const isMobile = useIsMobile()
   const [passwordStrength, setPasswordStrength] = useState('')
   const [usernameSuggestions, setUsernameSuggestions] = useState([])
   const [submitHover, setSubmitHover] = useState(false)
@@ -153,7 +155,7 @@ function Register() {
         background: 'linear-gradient(160deg, rgba(30,30,30,0.9) 0%, rgba(14,14,14,0.9) 100%)',
         backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '20px', padding: '2.5rem', width: '100%', maxWidth: '600px',
+        borderRadius: '20px', padding: 'var(--card-pad)', width: '100%', maxWidth: '600px',
         boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(179,31,47,0.05)'
       }}>
         <div style={{
@@ -174,7 +176,7 @@ function Register() {
           )}
 
           <form onSubmit={handleRegister} autoComplete="on">
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '1rem', marginBottom: '1.1rem' }}>
               <div>
                 <AuthField
                   label="Username"
@@ -215,7 +217,7 @@ function Register() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.1rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '1rem', marginBottom: '1.1rem' }}>
               <div>
                 <AuthField
                   label="Password"
@@ -260,7 +262,12 @@ function Register() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.1rem', marginTop: '1.5rem' }}>
+              {/* The normal widget is a fixed 304px — wider than this card's
+                  content on a phone. Its size can't change after render,
+                  so the key remounts it when crossing the breakpoint. */}
               <ReCAPTCHA
+                key={isMobile ? 'compact' : 'normal'}
+                size={isMobile ? 'compact' : 'normal'}
                 ref={recaptchaRef}
                 sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
                 onChange={(token) => setCaptchaToken(token)}

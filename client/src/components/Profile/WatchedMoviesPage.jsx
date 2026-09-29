@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import { prefetchMovie } from '../../api/movieCache'
+import { resumeAfter } from '../../utils/navState'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import Navbar from '../UI/Navbar'
 import NavButton from '../UI/NavButton'
@@ -11,9 +13,20 @@ function WatchedMoviesPage() {
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const [error, setError] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     fetchWatchedMovies()
+  }, [])
+
+  // Arriving back here after "Go Back" from a cast/director page —
+  // reopen the watched-movie modal we came from.
+  useEffect(() => {
+    if (location.state?.reopenWatchedMovie && !location.state?.backTo) {
+      setSelectedWatchedMovie({ _id: location.state.reopenWatchedMovie })
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchWatchedMovies = async () => {
@@ -42,7 +55,7 @@ function WatchedMoviesPage() {
         </NavButton>
       </Navbar>
 
-      <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>
         <div style={{
           backgroundColor: 'rgba(255,255,255,0.05)',
           border: '1px solid rgba(255,255,255,0.1)',
@@ -73,13 +86,13 @@ function WatchedMoviesPage() {
             <p style={{ color: '#aaa' }}>No watched movies yet.</p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))', gap: '1rem' }}>
             {watchedMovies.map(movie => (
               <div
                 key={movie._id}
-                onClick={() => setSelectedWatchedMovie(movie._id)}
+                onClick={() => setSelectedWatchedMovie(movie)}
                 style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.movie_id) }}
                 onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
               >
                 {movie.movie_poster ? (
@@ -102,7 +115,8 @@ function WatchedMoviesPage() {
 
       {selectedWatchedMovie && (
         <MovieDetailModal
-          watchedMovieId={selectedWatchedMovie}
+          watchedMovieId={selectedWatchedMovie._id}
+          initialMovie={selectedWatchedMovie}
           onClose={() => setSelectedWatchedMovie(null)}
           onDeleted={fetchWatchedMovies}
           onRatingUpdated={fetchWatchedMovies}

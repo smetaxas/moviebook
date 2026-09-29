@@ -3,7 +3,9 @@ import { GiphyFetch } from '@giphy/js-fetch-api'
 
 const gf = new GiphyFetch(import.meta.env.VITE_GIPHY_API_KEY)
 
-function GiphyPicker({ onSelect, onClose }) {
+// style: optional overrides for the popover box (e.g. a width cap when the
+// caller anchors it to a narrow container).
+function GiphyPicker({ onSelect, onClose, style }) {
   const [query, setQuery] = useState('')
   const [gifs, setGifs] = useState([])
   const [loading, setLoading] = useState(true)
@@ -34,8 +36,9 @@ function GiphyPicker({ onSelect, onClose }) {
       backgroundColor: '#1a1a1a',
       border: '1px solid rgba(255,255,255,0.1)',
       borderRadius: '12px', padding: '1rem',
-      width: '320px', zIndex: 1000,
-      boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+      width: 'min(320px, calc(100vw - 2rem))', zIndex: 1000,
+      boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+      ...style
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
         <p style={{ color: 'white', margin: 0, fontWeight: 'bold', fontSize: '0.9rem' }}>GIF</p>

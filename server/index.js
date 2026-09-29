@@ -29,6 +29,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https://image.tmdb.org", "https://res.cloudinary.com"],
       connectSrc: ["'self'", "https://moviebook-opal.vercel.app", "https://moviebook-production-0b76.up.railway.app"],
+      frameSrc: ["'self'", "https://www.youtube.com"],
     }
   },
   crossOriginEmbedderPolicy: false

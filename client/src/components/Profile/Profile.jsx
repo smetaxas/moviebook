@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
+import useIsMobile from '../../hooks/useIsMobile'
 import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
@@ -12,35 +13,50 @@ import ImageCropModal from '../UI/ImageCropModal'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Emoji from '../UI/Emoji'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
 import ProfileMenu from '../UI/ProfileMenu'
 import Avatar from '../UI/Avatar'
+import { prefetchMovie } from '../../api/movieCache'
+import { resumeAfter } from '../../utils/navState'
 
-const MovieGrid = ({ movies, onClick }) => (
-  <div style={{
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
-    gap: '1rem', marginBottom: '2rem',
-    animation: 'fadeIn 0.3s ease'
-  }}>
+// On mobile this becomes a horizontally-swipeable row of fixed-width cards
+// (TMDB's own mobile pattern for Trending/Popular/etc.) instead of a
+// vertical grid — a scrollbar-free, snap-scrolling carousel with a peek of
+// the next card at the edge as the scroll affordance.
+const MovieGrid = ({ movies, onClick, isMobile }) => (
+  <div
+    className={isMobile ? 'movie-carousel' : undefined}
+    style={isMobile
+      // overscrollBehaviorX: 'contain' stops this carousel's own scroll
+      // momentum from chaining into whatever scrollable ancestor is behind
+      // it once the carousel hits its start/end — the other half of fixing
+      // "swiping a carousel drags the whole page sideways" (see Main
+      // Content's overflowX: 'hidden' below for the rest of it).
+      ? { display: 'flex', gap: '0.85rem', overflowX: 'auto', overscrollBehaviorX: 'contain', paddingBottom: '0.5rem', marginBottom: '2rem', animation: 'fadeIn 0.3s ease' }
+      : { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem', animation: 'fadeIn 0.3s ease' }}
+  >
     <style>{`
       @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
+      .movie-carousel { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .movie-carousel::-webkit-scrollbar { display: none; }
     `}</style>
     {movies.map((movie, i) => (
       <div
         key={movie._id || movie.tmdb_id || i}
         onClick={() => onClick(movie)}
-        style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+        style={{
+          cursor: 'pointer', transition: 'transform 0.2s',
+          ...(isMobile ? { flexShrink: 0, width: '128px', scrollSnapAlign: 'start' } : {})
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.movie_id || movie.tmdb_id) }}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
       >
         {(movie.movie_poster || movie.poster_url) ? (
-          <img src={movie.movie_poster || movie.poster_url} alt={movie.movie_title || movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+          <img src={movie.movie_poster || movie.poster_url} alt={movie.movie_title || movie.title} style={{ width: '100%', aspectRatio: '2 / 3', objectFit: 'cover', borderRadius: '8px', display: 'block' }} />
         ) : (
-          <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: '100%', aspectRatio: '2 / 3', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <span style={{ color: '#aaa' }}>No Poster</span>
           </div>
         )}
@@ -62,30 +78,45 @@ const Collapsible = ({ open, children }) => (
     display: 'grid', gridTemplateRows: open ? '1fr' : '0fr',
     transition: 'grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1)'
   }}>
-    <div style={{ overflow: open ? 'visible' : 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.25s ease ' + (open ? '0.05s' : '0s') }}>
+    {/* overflowX stays hidden even while open (unlike overflowY, which goes
+        visible so nothing near the bottom gets clipped) — this section
+        wraps a horizontal movie carousel on mobile, and 'visible' here was
+        exactly the gap that let its scroll gesture chain out to the whole
+        page once the carousel hit its own scroll limit. */}
+    <div style={{ overflowY: open ? 'visible' : 'hidden', overflowX: 'hidden', opacity: open ? 1 : 0, transition: 'opacity 0.25s ease ' + (open ? '0.05s' : '0s') }}>
       {children}
     </div>
   </div>
 )
 
-const StatCard = ({ count, label, icon, isOpen, onClick }) => (
+const StatCard = ({ count, label, icon, isOpen, onClick, isMobile }) => (
   <div
     onClick={onClick}
     style={{
       textAlign: 'center', cursor: 'pointer', position: 'relative',
       backgroundColor: isOpen ? 'rgba(179,31,47,0.14)' : 'rgba(255,255,255,0.03)',
       border: `1px solid ${isOpen ? 'rgba(179,31,47,0.45)' : 'rgba(255,255,255,0.08)'}`,
-      borderRadius: '14px', padding: '0.9rem 1.5rem',
+      borderRadius: isMobile ? '10px' : '14px',
+      padding: isMobile ? '0.55rem 0.4rem' : '0.9rem 1.5rem',
       transition: 'background-color 0.2s, border-color 0.2s, transform 0.2s',
-      minWidth: '112px'
+      // On mobile, sharing the row equally (instead of a fixed minWidth) is
+      // what keeps all three side by side on a narrow screen instead of
+      // wrapping to a second line.
+      ...(isMobile ? { flex: '1 1 0', minWidth: 0 } : { minWidth: '112px' })
     }}
     onMouseEnter={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)' }}
     onMouseLeave={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)' }}
   >
-    <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: isOpen ? 0.9 : 0.45 }}>{icon}</span>
-    <p style={{ fontSize: '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: isOpen ? '#dc3c4f' : 'white' }}>{count}</p>
-    <p style={{ color: '#999', margin: '0.4rem 0 0 0', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</p>
-    <p style={{ color: isOpen ? '#dc3c4f' : '#555', margin: '0.35rem 0 0 0', fontSize: '0.68rem', fontWeight: 600 }}>{isOpen ? '▲ Hide' : '▼ Show'}</p>
+    {!isMobile && <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: isOpen ? 0.9 : 0.45 }}>{icon}</span>}
+    <p style={{ fontSize: isMobile ? '1.2rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: isOpen ? '#dc3c4f' : 'white' }}>{count}</p>
+    <p style={{
+      color: '#999', margin: isMobile ? '0.25rem 0 0 0' : '0.4rem 0 0 0', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+      fontSize: isMobile ? '0.58rem' : '0.72rem',
+      whiteSpace: isMobile ? 'nowrap' : 'normal', overflow: isMobile ? 'hidden' : 'visible', textOverflow: isMobile ? 'ellipsis' : 'clip'
+    }}>{label}</p>
+    {!isMobile && (
+      <p style={{ color: isOpen ? '#dc3c4f' : '#555', margin: '0.35rem 0 0 0', fontSize: '0.68rem', fontWeight: 600 }}>{isOpen ? '▲ Hide' : '▼ Show'}</p>
+    )}
   </div>
 )
 
@@ -101,12 +132,19 @@ function Profile() {
   const [genreMovies, setGenreMovies] = useState([])
   const [yearFrom, setYearFrom] = useState('')
   const [yearTo, setYearTo] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isMobile = useIsMobile()
+  // Sidebar defaults collapsed on mobile (it'd otherwise cover the whole
+  // screen on first load) and open on desktop, matching its own width.
+  const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
   const [watchedOpen, setWatchedOpen] = useState(false)
   const [watchlistOpen, setWatchlistOpen] = useState(false)
   const [favoritesOpen, setFavoritesOpen] = useState(false)
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
+  // What to pre-fill the search modal with when it's being reopened after
+  // "← Back" from a person's page reached via search (see the reopenSearch
+  // effect below) — { mode, query } or null for a fresh, empty search.
+  const [searchReopenState, setSearchReopenState] = useState(null)
   const [selectedWatchedMovie, setSelectedWatchedMovie] = useState(null)
   const [selectedTrendingMovie, setSelectedTrendingMovie] = useState(null)
   const [show2FASetup, setShow2FASetup] = useState(false)
@@ -128,12 +166,20 @@ function Profile() {
     fetchGenres()
   }, [])
 
-  // Arriving back here after "Go Back" from someone else's profile —
-  // reopen the watched-movie modal we came from.
+  // Arriving back here after "Go Back" from someone else's profile, or from
+  // a cast/director page — reopen whichever movie modal (or search) we came
+  // from.
   useEffect(() => {
     if (location.state?.reopenWatchedMovie && !location.state?.backTo) {
-      setSelectedWatchedMovie(location.state.reopenWatchedMovie)
-      navigate(location.pathname, { replace: true, state: null })
+      setSelectedWatchedMovie({ _id: location.state.reopenWatchedMovie })
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    } else if (location.state?.reopenMovieDetails && !location.state?.backTo) {
+      setSelectedTrendingMovie(location.state.reopenMovieDetails)
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    } else if (location.state?.reopenSearch && !location.state?.backTo) {
+      setSearchReopenState(location.state.reopenSearch)
+      setShowSearch(true)
+      navigate(location.pathname, { replace: true, state: resumeAfter(location) })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -276,15 +322,87 @@ function Profile() {
     })
   }
 
-  const isUpcoming = (movie) => upcomingMovies.some(m => m.tmdb_id === movie.tmdb_id)
-
   if (error) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>{error}</p>
   if (!user) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>Loading...</p>
 
+  // Shared with both the desktop nav buttons and the mobile hamburger
+  // dropdown below, so the two don't drift out of sync with each other.
+  const navActions = [
+    {
+      key: 'search',
+      label: 'Search',
+      variant: 'solid',
+      onClick: () => { setSearchReopenState(null); setShowSearch(true) },
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2.3" />
+          <line x1="16.4" y1="16.4" x2="21" y2="21" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
+        </svg>
+      )
+    },
+    {
+      key: 'community',
+      label: 'Community',
+      onClick: () => navigate('/feed'),
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+          <ellipse cx="12" cy="12" rx="4" ry="9" stroke="currentColor" strokeWidth="2" />
+          <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="2" />
+        </svg>
+      )
+    },
+    {
+      key: 'stats',
+      label: 'Stats',
+      onClick: () => navigate('/stats'),
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <line x1="5" y1="21" x2="5" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1="12" y1="21" x2="12" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <line x1="19" y1="21" x2="19" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      )
+    }
+  ]
+
+  // overflowX: 'clip' below is a last-resort backstop — the actual scroll
+  // boundary for page content is Main Content further down, but this
+  // guarantees the page itself can never be dragged sideways no matter what
+  // a future addition does upstream. It must be 'clip', not 'hidden':
+  // 'hidden' makes this div a scroll container, which silently breaks the
+  // sidebar's position: sticky (it sticks to this div instead of the
+  // viewport, so it scrolls away with the page).
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white', overflowX: 'clip' }}>
       <Navbar
-        leftExtra={
+        actions={navActions}
+        // On mobile the sidebar is a drawer, and the tiny chevron below is
+        // too small a tap target — it gets a full-size Filters button at the
+        // far left of the bar instead.
+        leading={isMobile && (
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Close filters' : 'Open filters'}
+            aria-expanded={sidebarOpen}
+            style={{
+              width: '38px', height: '38px', borderRadius: '10px', flexShrink: 0, padding: 0,
+              backgroundColor: sidebarOpen ? 'rgba(179,31,47,0.18)' : 'rgba(255,255,255,0.08)',
+              border: '1px solid ' + (sidebarOpen ? 'rgba(179,31,47,0.6)' : 'rgba(255,255,255,0.15)'),
+              color: sidebarOpen ? '#dc3c4f' : 'white', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'background-color 0.15s, border-color 0.15s, color 0.15s'
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="4" y1="7" x2="20" y2="7" />
+              <line x1="4" y1="17" x2="20" y2="17" />
+              <circle cx="9" cy="7" r="2.2" fill="currentColor" />
+              <circle cx="15" cy="17" r="2.2" fill="currentColor" />
+            </svg>
+          </button>
+        )}
+        leftExtra={!isMobile &&
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
             aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
@@ -332,46 +450,6 @@ function Profile() {
           </button>
         }
       >
-        <NavButton
-          variant="solid"
-          onClick={() => setShowSearch(true)}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2.3" />
-              <line x1="16.4" y1="16.4" x2="21" y2="21" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" />
-            </svg>
-          }
-        >
-          Search
-        </NavButton>
-        <NavButton
-          onClick={() => navigate('/feed')}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-              <ellipse cx="12" cy="12" rx="4" ry="9" stroke="currentColor" strokeWidth="2" />
-              <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" strokeWidth="2" />
-            </svg>
-          }
-        >
-          Community
-        </NavButton>
-        <NavButton
-          onClick={() => navigate('/stats')}
-          icon={
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-              <line x1="5" y1="21" x2="5" y2="12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <line x1="12" y1="21" x2="12" y2="7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              <line x1="19" y1="21" x2="19" y2="3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          }
-        >
-          Stats
-        </NavButton>
-        <NavButton onClick={() => navigate('/awards')} icon="🏆">
-          Awards
-        </NavButton>
-
         <ProfileMenu
           user={user}
           onOpen2FA={() => setShow2FASetup(true)}
@@ -382,13 +460,20 @@ function Profile() {
       </Navbar>
 
       {/* Main Layout */}
-      <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)' }}>
+      <div style={{ display: 'flex', minHeight: 'calc(100vh - var(--nav-h))' }}>
 
         <GenreSidebar
           isOpen={sidebarOpen}
+          isMobile={isMobile}
           genres={genres}
           selectedGenre={selectedGenre}
-          onSelectGenre={(genre) => fetchGenreMovies(genre)}
+          onSelectGenre={(genre) => {
+            fetchGenreMovies(genre)
+            // A mobile drawer should get out of the way once its job (picking
+            // a filter) is done, rather than making you dismiss it separately
+            // to see the results it just filtered.
+            if (isMobile) setSidebarOpen(false)
+          }}
           onClose={() => setSidebarOpen(false)}
           yearFrom={yearFrom}
           yearTo={yearTo}
@@ -403,7 +488,17 @@ function Profile() {
         />
 
         {/* Main Content */}
-        <div style={{ flex: 1, padding: '2rem', overflow: 'auto' }}>
+        {/* minWidth: 0 is defensive (a flex item's default min-width: auto
+            can otherwise refuse to shrink below its content's intrinsic
+            width). The real fix for "swiping a carousel drags the whole
+            page sideways" is overflowX: 'hidden' here: this column only
+            ever needs to scroll vertically — the movie carousels below
+            handle their own horizontal scrolling internally — so once a
+            carousel hits the end of its own scroll, there's no horizontal
+            scroll left on this parent for that gesture to chain into. With
+            plain overflow: 'auto' (both axes) that chaining is exactly what
+            was happening. */}
+        <div style={{ flex: 1, minWidth: 0, padding: 'var(--page-pad)', overflowY: 'auto', overflowX: 'hidden' }}>
 
           {/* Profile Info */}
           <div style={{
@@ -417,7 +512,12 @@ function Profile() {
               background: 'radial-gradient(circle, rgba(179,31,47,0.28) 0%, transparent 70%)', pointerEvents: 'none'
             }} />
 
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1.75rem' }}>
+            <div style={{
+              position: 'relative', display: 'flex',
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: 'center', textAlign: isMobile ? 'center' : 'left',
+              gap: isMobile ? '1.25rem' : '1.75rem'
+            }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div style={{ borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
                   <Avatar user={user} size={92} onClick={() => document.getElementById('photoInput').click()} />
@@ -447,22 +547,29 @@ function Profile() {
                 <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
               </div>
 
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ flex: isMobile ? 'none' : 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
                 <h2 style={{ margin: '0 0 0.35rem 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}>{user.username || user.email}</h2>
-                <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.4rem' }}>
                   <span>📅</span> Member since {formatDate(user.createdAt)}
                 </p>
               </div>
 
-              <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
+              {!isMobile && (
+                <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
+              )}
 
-              <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
+              <div style={{
+                display: 'flex', gap: isMobile ? '0.5rem' : '1rem', flexShrink: 0,
+                justifyContent: isMobile ? 'center' : 'flex-start',
+                width: isMobile ? '100%' : undefined
+              }}>
                 <StatCard
                   count={watchedMovies.length}
                   label="Movies Watched"
                   icon="🎬"
                   isOpen={watchedOpen}
                   onClick={() => setWatchedOpen(!watchedOpen)}
+                  isMobile={isMobile}
                 />
                 <StatCard
                   count={watchlist.length}
@@ -470,6 +577,7 @@ function Profile() {
                   icon="🎯"
                   isOpen={watchlistOpen}
                   onClick={() => setWatchlistOpen(!watchlistOpen)}
+                  isMobile={isMobile}
                 />
                 <StatCard
                   count={favorites.length}
@@ -477,6 +585,7 @@ function Profile() {
                   icon="❤️"
                   isOpen={favoritesOpen}
                   onClick={() => setFavoritesOpen(!favoritesOpen)}
+                  isMobile={isMobile}
                 />
               </div>
             </div>
@@ -484,14 +593,14 @@ function Profile() {
 
           {/* My Watched Movies */}
           <Collapsible open={watchedOpen}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>My Watched Movies</h3>
+            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎬 My Watched Movies</h3>
             {watchedMovies.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
                 <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
                 <p style={{ color: '#aaa' }}>No watched movies yet!</p>
               </div>
             ) : (
-              <MovieGrid movies={watchedMovies} onClick={(movie) => setSelectedWatchedMovie(movie._id)} />
+              <MovieGrid movies={watchedMovies} onClick={setSelectedWatchedMovie} isMobile={isMobile} />
             )}
           </Collapsible>
 
@@ -507,6 +616,7 @@ function Profile() {
               <MovieGrid
                 movies={watchlist.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
                 onClick={(movie) => setSelectedTrendingMovie(movie)}
+                isMobile={isMobile}
               />
             )}
           </Collapsible>
@@ -523,6 +633,7 @@ function Profile() {
               <MovieGrid
                 movies={favorites.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
                 onClick={(movie) => setSelectedTrendingMovie(movie)}
+                isMobile={isMobile}
               />
             )}
           </Collapsible>
@@ -541,7 +652,7 @@ function Profile() {
               {genreMovies.length === 0 ? (
                 <p style={{ color: '#aaa', marginBottom: '2rem' }}>No movies found.</p>
               ) : (
-                <MovieGrid movies={genreMovies} onClick={setSelectedTrendingMovie} />
+                <MovieGrid movies={genreMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
               )}
             </>
           )}
@@ -551,7 +662,7 @@ function Profile() {
           {trendingMovies.length === 0 ? (
             <p style={{ color: '#aaa' }}>Loading...</p>
           ) : (
-            <MovieGrid movies={trendingMovies} onClick={setSelectedTrendingMovie} />
+            <MovieGrid movies={trendingMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
           )}
 
           {/* Upcoming Movies */}
@@ -559,7 +670,7 @@ function Profile() {
           {upcomingMovies.length === 0 ? (
             <p style={{ color: '#aaa' }}>Loading...</p>
           ) : (
-            <MovieGrid movies={upcomingMovies} onClick={setSelectedTrendingMovie} />
+            <MovieGrid movies={upcomingMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
           )}
         </div>
       </div>
@@ -568,7 +679,8 @@ function Profile() {
 
       {selectedWatchedMovie && (
         <MovieDetailModal
-          watchedMovieId={selectedWatchedMovie}
+          watchedMovieId={selectedWatchedMovie._id}
+          initialMovie={selectedWatchedMovie}
           onClose={() => setSelectedWatchedMovie(null)}
           onDeleted={fetchWatchedMovies}
           onRatingUpdated={fetchWatchedMovies}
@@ -579,7 +691,6 @@ function Profile() {
         <TMDBMovieModal
           movie={selectedTrendingMovie}
           onClose={() => setSelectedTrendingMovie(null)}
-          hideLog={isUpcoming(selectedTrendingMovie)}
           onWatchlistChange={fetchWatchlist}
           onFavoriteChange={fetchFavorites}
           onLogMovie={(movie) => {
@@ -602,10 +713,12 @@ function Profile() {
 
       {showSearch && (
         <SearchModal
-          onClose={() => setShowSearch(false)}
+          onClose={() => { setShowSearch(false); setSearchReopenState(null) }}
           onMovieLogged={fetchWatchedMovies}
           onWatchlistChange={fetchWatchlist}
           onFavoriteChange={fetchFavorites}
+          initialQuery={searchReopenState?.query}
+          initialMode={searchReopenState?.mode}
         />
       )}
 
