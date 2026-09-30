@@ -4,7 +4,7 @@ import api from '../../api/axios'
 import TMDBMovieModal from './TMDBMovieModal'
 import LogMovieModal from './LogMovieModal'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Select from '../UI/Select'
 import Emoji from '../UI/Emoji'
@@ -149,9 +149,7 @@ function AwardedMovies() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <Navbar>
-        <NavButton onClick={() => navigate('/profile')}>
-          ← Back to Profile
-        </NavButton>
+        <BackButton onClick={() => navigate('/profile')}>Back to Profile</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>

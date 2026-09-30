@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import { Chart, registerables } from 'chart.js'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import useIsMobile from '../../hooks/useIsMobile'
 Chart.register(...registerables)
 
@@ -53,6 +53,9 @@ function Stats() {
   }
 
   const renderCharts = () => {
+    // Smaller axis text on phones.
+    const mobileTicks = isMobile ? { font: { size: 11 } } : {}
+
     // Monthly chart
     if (monthlyChartRef.current) {
       if (monthlyChartInstance.current) monthlyChartInstance.current.destroy()
@@ -71,13 +74,27 @@ function Stats() {
         },
         options: {
           responsive: true,
-          aspectRatio: isMobile ? 1.3 : 2,
+          // On phones the chart fills a fixed-height box (see the wrapper
+          // around the canvas) instead of deriving its height from its width.
+          maintainAspectRatio: !isMobile,
           plugins: {
-            legend: { labels: { color: 'white' } }
+            // The card title already says what the bars are.
+            legend: { display: !isMobile, labels: { color: 'white' } }
           },
           scales: {
-            x: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-            y: { ticks: { color: '#aaa', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            x: {
+              ticks: {
+                color: '#aaa', ...mobileTicks,
+                // 12 three-letter labels don't fit a phone without tilting —
+                // single letters do.
+                callback: function (value) {
+                  const label = this.getLabelForValue(value)
+                  return isMobile ? label[0] : label
+                }
+              },
+              grid: { color: 'rgba(255,255,255,0.05)' }
+            },
+            y: { ticks: { color: '#aaa', stepSize: 1, ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } }
           }
         }
       })
@@ -105,6 +122,7 @@ function Stats() {
         },
         options: {
           responsive: true,
+          maintainAspectRatio: !isMobile,
           plugins: {
             legend: {
               position: isMobile ? 'bottom' : 'right',
@@ -141,8 +159,8 @@ function Stats() {
             legend: { display: false }
           },
           scales: {
-            x: { ticks: { color: '#aaa', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } },
-            y: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            x: { ticks: { color: '#aaa', stepSize: 1, maxRotation: 0, maxTicksLimit: isMobile ? 6 : 12, ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#aaa', ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } }
           }
         }
       })
@@ -168,13 +186,13 @@ function Stats() {
         },
         options: {
           responsive: true,
-          aspectRatio: isMobile ? 1.3 : 2,
+          maintainAspectRatio: !isMobile,
           plugins: {
             legend: { display: false }
           },
           scales: {
-            x: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.05)' } },
-            y: { ticks: { color: '#aaa', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            x: { ticks: { color: '#aaa', ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#aaa', stepSize: 1, maxTicksLimit: isMobile ? 6 : 11, ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } }
           }
         }
       })
@@ -205,8 +223,8 @@ function Stats() {
             legend: { display: false }
           },
           scales: {
-            x: { ticks: { color: '#aaa', stepSize: 1 }, grid: { color: 'rgba(255,255,255,0.05)' } },
-            y: { ticks: { color: '#aaa' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+            x: { ticks: { color: '#aaa', stepSize: 1, maxRotation: 0, maxTicksLimit: isMobile ? 6 : 12, ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { ticks: { color: '#aaa', ...mobileTicks }, grid: { color: 'rgba(255,255,255,0.05)' } }
           }
         }
       })
@@ -214,14 +232,12 @@ function Stats() {
   }
 
   const chartPad = isMobile ? '1rem' : '1.5rem'
-  const cardGap = isMobile ? '1.25rem' : '2rem'
+  const cardGap = isMobile ? '1rem' : '2rem'
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <Navbar>
-        <NavButton onClick={() => navigate('/profile')}>
-          ← Back to Profile
-        </NavButton>
+        <BackButton onClick={() => navigate('/profile')}>Back to Profile</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1000px', margin: '0 auto' }}>
@@ -239,39 +255,60 @@ function Stats() {
         ) : (
           <>
             {/* Stat Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: isMobile ? '0.75rem' : '1rem', marginBottom: cardGap }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(auto-fill, minmax(200px, 1fr))', gap: isMobile ? '0.6rem' : '1rem', marginBottom: cardGap }}>
               {[
                 { icon: '🎬', label: 'Movies Watched', value: stats.totalMovies },
                 { icon: '⏱', label: 'Hours Watched', value: `${stats.totalHours}h` },
                 { icon: '⭐', label: 'Average Rating', value: `${stats.avgRating}/5` },
                 { icon: '📅', label: 'This Year', value: stats.moviesPerMonth.reduce((a, b) => a + b, 0) },
-              ].map((stat, i) => (
+              ].map((stat, i) => isMobile ? (
+                // Phones: icon beside the number, so four tiles take two
+                // short rows instead of two tall ones.
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0,
+                  backgroundColor: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '14px', padding: '0.7rem 0.75rem'
+                }}>
+                  <span style={{
+                    flexShrink: 0, width: '36px', height: '36px', borderRadius: '10px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', lineHeight: 1,
+                    backgroundColor: 'rgba(229,9,20,0.12)', border: '1px solid rgba(229,9,20,0.25)'
+                  }}>{stat.icon}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 800, margin: 0, lineHeight: 1.1, color: '#e50914' }}>{stat.value}</p>
+                    <p style={{ color: '#aaa', margin: '0.15rem 0 0 0', fontSize: '0.72rem', lineHeight: 1.2 }}>{stat.label}</p>
+                  </div>
+                </div>
+              ) : (
                 <div key={i} style={{
                   backgroundColor: 'rgba(255,255,255,0.05)',
                   border: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '16px', padding: isMobile ? '1rem 0.5rem' : '1.5rem',
+                  borderRadius: '16px', padding: '1.5rem',
                   textAlign: 'center'
                 }}>
-                  <p style={{ fontSize: isMobile ? '1.5rem' : '2rem', margin: '0 0 0.4rem 0' }}>{stat.icon}</p>
-                  <p style={{ fontSize: isMobile ? '1.5rem' : '2rem', fontWeight: 'bold', margin: '0 0 0.25rem 0', color: '#e50914' }}>{stat.value}</p>
-                  <p style={{ color: '#aaa', margin: 0, fontSize: isMobile ? '0.78rem' : '0.85rem' }}>{stat.label}</p>
+                  <p style={{ fontSize: '2rem', margin: '0 0 0.4rem 0' }}>{stat.icon}</p>
+                  <p style={{ fontSize: '2rem', fontWeight: 'bold', margin: '0 0 0.25rem 0', color: '#e50914' }}>{stat.value}</p>
+                  <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>{stat.label}</p>
                 </div>
               ))}
             </div>
 
             {/* Monthly Chart */}
             <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: chartPad, marginBottom: cardGap }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: isMobile ? '1rem' : undefined }}>📅 Movies This Year by Month</h3>
-              <canvas ref={monthlyChartRef} />
+              <h3 style={{ marginBottom: isMobile ? '0.75rem' : '1rem', fontSize: isMobile ? '1rem' : undefined }}>📅 Movies This Year by Month</h3>
+<div style={{ position: 'relative', height: isMobile ? '200px' : 'auto' }}>
+                <canvas ref={monthlyChartRef} />
+              </div>
             </div>
 
             {/* Decade Chart */}
             <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: chartPad }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎞️ Movies by Decade</h3>
+              <h3 style={{ marginBottom: isMobile ? '0.75rem' : '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎞️ Movies by Decade</h3>
               {Object.keys(stats.moviesPerDecade).length === 0 ? (
                 <p style={{ color: '#aaa' }}>No data yet</p>
               ) : (
-                <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+                <div style={{ position: 'relative', maxWidth: '400px', margin: '0 auto', height: isMobile ? '270px' : 'auto' }}>
                   <canvas ref={decadeChartRef} />
                 </div>
               )}
@@ -279,11 +316,11 @@ function Stats() {
 
             {/* Genre Chart */}
             <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: chartPad, marginTop: cardGap }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎭 Movies by Genre</h3>
+              <h3 style={{ marginBottom: isMobile ? '0.75rem' : '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎭 Movies by Genre</h3>
               {Object.keys(stats.moviesPerGenre).length === 0 ? (
                 <p style={{ color: '#aaa' }}>No data yet</p>
               ) : (
-                <div style={{ height: `${Math.max(250, Object.keys(stats.moviesPerGenre).length * 32)}px` }}>
+                <div style={{ position: 'relative', height: `${isMobile ? Math.max(180, Object.keys(stats.moviesPerGenre).length * 26) : Math.max(250, Object.keys(stats.moviesPerGenre).length * 32)}px` }}>
                   <canvas ref={genreChartRef} />
                 </div>
               )}
@@ -291,21 +328,23 @@ function Stats() {
 
             {/* Rating Distribution Chart */}
             <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: chartPad, marginTop: cardGap }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: isMobile ? '1rem' : undefined }}>⭐ Rating Distribution</h3>
+              <h3 style={{ marginBottom: isMobile ? '0.75rem' : '1rem', fontSize: isMobile ? '1rem' : undefined }}>⭐ Rating Distribution</h3>
               {Object.values(stats.ratingDistribution).every(count => count === 0) ? (
                 <p style={{ color: '#aaa' }}>No ratings yet</p>
               ) : (
-                <canvas ref={ratingChartRef} />
+<div style={{ position: 'relative', height: isMobile ? '190px' : 'auto' }}>
+                  <canvas ref={ratingChartRef} />
+                </div>
               )}
             </div>
 
             {/* Top Directors Chart */}
             <div style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: chartPad, marginTop: cardGap }}>
-              <h3 style={{ marginBottom: '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎬 Top Directors</h3>
+              <h3 style={{ marginBottom: isMobile ? '0.75rem' : '1rem', fontSize: isMobile ? '1rem' : undefined }}>🎬 Top Directors</h3>
               {stats.topDirectors.length === 0 ? (
                 <p style={{ color: '#aaa' }}>No data yet</p>
               ) : (
-                <div style={{ height: `${Math.max(200, stats.topDirectors.length * 45)}px` }}>
+                <div style={{ position: 'relative', height: `${isMobile ? Math.max(150, stats.topDirectors.length * 36) : Math.max(200, stats.topDirectors.length * 45)}px` }}>
                   <canvas ref={directorChartRef} />
                 </div>
               )}

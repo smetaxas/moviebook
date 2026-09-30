@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
 import useIsMobile from '../../hooks/useIsMobile'
+import useElementWidth from '../../hooks/useElementWidth'
 import SearchModal from '../Movies/SearchModal'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
@@ -89,36 +90,45 @@ const Collapsible = ({ open, children }) => (
   </div>
 )
 
-const StatCard = ({ count, label, icon, isOpen, onClick, isMobile }) => (
-  <div
-    onClick={onClick}
-    style={{
-      textAlign: 'center', cursor: 'pointer', position: 'relative',
-      backgroundColor: isOpen ? 'rgba(179,31,47,0.14)' : 'rgba(255,255,255,0.03)',
-      border: `1px solid ${isOpen ? 'rgba(179,31,47,0.45)' : 'rgba(255,255,255,0.08)'}`,
-      borderRadius: isMobile ? '10px' : '14px',
-      padding: isMobile ? '0.55rem 0.4rem' : '0.9rem 1.5rem',
-      transition: 'background-color 0.2s, border-color 0.2s, transform 0.2s',
-      // On mobile, sharing the row equally (instead of a fixed minWidth) is
-      // what keeps all three side by side on a narrow screen instead of
-      // wrapping to a second line.
-      ...(isMobile ? { flex: '1 1 0', minWidth: 0 } : { minWidth: '112px' })
-    }}
-    onMouseEnter={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)' }}
-    onMouseLeave={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)' }}
-  >
-    {!isMobile && <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: isOpen ? 0.9 : 0.45 }}>{icon}</span>}
-    <p style={{ fontSize: isMobile ? '1.2rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: isOpen ? '#dc3c4f' : 'white' }}>{count}</p>
-    <p style={{
-      color: '#999', margin: isMobile ? '0.25rem 0 0 0' : '0.4rem 0 0 0', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
-      fontSize: isMobile ? '0.58rem' : '0.72rem',
-      whiteSpace: isMobile ? 'nowrap' : 'normal', overflow: isMobile ? 'hidden' : 'visible', textOverflow: isMobile ? 'ellipsis' : 'clip'
-    }}>{label}</p>
-    {!isMobile && (
-      <p style={{ color: isOpen ? '#dc3c4f' : '#555', margin: '0.35rem 0 0 0', fontSize: '0.68rem', fontWeight: 600 }}>{isOpen ? '▲ Hide' : '▼ Show'}</p>
-    )}
-  </div>
-)
+// size follows the info card's layout (see cardLayout in Profile):
+//  'full'    — wide card, tiles sit in the same row as the name
+//  'medium'  — tiles share their own full-width row under the name
+//  'compact' — phone: same row of three, smaller type
+const StatCard = ({ count, label, shortLabel, icon, isOpen, onClick, size = 'full' }) => {
+  const compact = size === 'compact'
+  const full = size === 'full'
+  return (
+    <div
+      onClick={onClick}
+      role="button"
+      aria-expanded={isOpen}
+      style={{
+        textAlign: 'center', cursor: 'pointer', position: 'relative',
+        backgroundColor: isOpen ? 'rgba(179,31,47,0.14)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${isOpen ? 'rgba(179,31,47,0.45)' : 'rgba(255,255,255,0.08)'}`,
+        borderRadius: compact ? '12px' : '14px',
+        padding: compact ? '0.65rem 0.3rem 0.5rem' : full ? '0.9rem 1.5rem' : '0.8rem 0.75rem',
+        transition: 'background-color 0.2s, border-color 0.2s, transform 0.2s',
+        // Outside the wide layout the three tiles share the row equally
+        // (instead of a fixed minWidth), so they can never overflow it.
+        ...(full ? { minWidth: '112px' } : { flex: '1 1 0', minWidth: 0 })
+      }}
+      onMouseEnter={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)' }}
+      onMouseLeave={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)' }}
+    >
+      {!compact && <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: isOpen ? 0.9 : 0.45 }}>{icon}</span>}
+      <p style={{ fontSize: compact ? '1.35rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: isOpen ? '#dc3c4f' : 'white' }}>{count}</p>
+      <p style={{
+        color: '#999', margin: compact ? '0.3rem 0 0 0' : '0.4rem 0 0 0', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
+        fontSize: compact ? '0.62rem' : '0.72rem', whiteSpace: 'nowrap'
+      }}>{compact ? (shortLabel || label) : label}</p>
+      {/* The tile is a show/hide toggle for its list — say so at every size. */}
+      <p style={{ color: isOpen ? '#dc3c4f' : '#555', margin: compact ? '0.2rem 0 0 0' : '0.35rem 0 0 0', fontSize: compact ? '0.58rem' : '0.68rem', fontWeight: 600 }}>
+        {isOpen ? '▲ Hide' : '▼ Show'}
+      </p>
+    </div>
+  )
+}
 
 function Profile() {
   const [user, setUser] = useState(null)
@@ -133,6 +143,13 @@ function Profile() {
   const [yearFrom, setYearFrom] = useState('')
   const [yearTo, setYearTo] = useState('')
   const isMobile = useIsMobile()
+  // The info card lays itself out from its OWN width, not the screen's: with
+  // the sidebar open on a tablet or small laptop the card is far narrower
+  // than the viewport, and the one-row desktop layout doesn't fit.
+  const [infoCardRef, infoCardWidth] = useElementWidth()
+  const cardLayout = infoCardWidth === null
+    ? (isMobile ? 'narrow' : 'wide')
+    : infoCardWidth < 480 ? 'narrow' : infoCardWidth < 860 ? 'medium' : 'wide'
   // Sidebar defaults collapsed on mobile (it'd otherwise cover the whole
   // screen on first load) and open on desktop, matching its own width.
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
@@ -500,12 +517,16 @@ function Profile() {
             was happening. */}
         <div style={{ flex: 1, minWidth: 0, padding: 'var(--page-pad)', overflowY: 'auto', overflowX: 'hidden' }}>
 
-          {/* Profile Info */}
-          <div style={{
+          {/* Profile Info — three layouts, chosen by the card's own width:
+              wide:   avatar · name · divider · stat tiles, all in one row
+              medium: avatar + name on top, stat tiles in a full-width row below
+              narrow: everything stacked and centred (phones) */}
+          <div ref={infoCardRef} style={{
             position: 'relative', overflow: 'hidden',
             background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
             border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-            padding: '1.75rem 2.25rem', marginBottom: '2rem'
+            padding: cardLayout === 'narrow' ? '1.4rem 0.9rem 0.9rem' : cardLayout === 'medium' ? '1.4rem 1.4rem 1.2rem' : '1.75rem 2.25rem',
+            marginBottom: isMobile ? '1.5rem' : '2rem'
           }}>
             <div style={{
               position: 'absolute', top: '-70px', left: '-70px', width: '220px', height: '220px',
@@ -514,62 +535,73 @@ function Profile() {
 
             <div style={{
               position: 'relative', display: 'flex',
-              flexDirection: isMobile ? 'column' : 'row',
-              alignItems: 'center', textAlign: isMobile ? 'center' : 'left',
-              gap: isMobile ? '1.25rem' : '1.75rem'
+              flexDirection: cardLayout === 'wide' ? 'row' : 'column',
+              alignItems: cardLayout === 'medium' ? 'stretch' : 'center',
+              gap: cardLayout === 'wide' ? '1.75rem' : '1.1rem'
             }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <div style={{ borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
-                  <Avatar user={user} size={92} onClick={() => document.getElementById('photoInput').click()} />
+              {/* Avatar + name: side by side, except stacked on a phone */}
+              <div style={{
+                display: 'flex', alignItems: 'center', minWidth: 0,
+                flexDirection: cardLayout === 'narrow' ? 'column' : 'row',
+                textAlign: cardLayout === 'narrow' ? 'center' : 'left',
+                gap: cardLayout === 'narrow' ? '0.9rem' : cardLayout === 'medium' ? '1.1rem' : '1.75rem',
+                flex: cardLayout === 'wide' ? 1 : 'none',
+                width: cardLayout === 'narrow' ? '100%' : undefined
+              }}>
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <div style={{ borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
+                    <Avatar user={user} size={cardLayout === 'wide' ? 92 : cardLayout === 'medium' ? 76 : 84} onClick={() => document.getElementById('photoInput').click()} />
+                  </div>
+                  <div
+                    onClick={() => document.getElementById('photoInput').click()}
+                    style={{
+                      position: 'absolute', bottom: '2px', right: '2px', backgroundColor: '#b31f2f',
+                      border: '2px solid #0a0a0a', borderRadius: '50%', width: '26px', height: '26px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                      fontSize: '0.72rem', lineHeight: '1', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                      transform: 'scale(1)', transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.backgroundColor = '#dc3c4f'
+                      e.currentTarget.style.transform = 'scale(1.12)'
+                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(179,31,47,0.55)'
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.backgroundColor = '#b31f2f'
+                      e.currentTarget.style.transform = 'scale(1)'
+                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)'
+                    }}
+                  >
+                    📷
+                  </div>
+                  <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
                 </div>
-                <div
-                  onClick={() => document.getElementById('photoInput').click()}
-                  style={{
-                    position: 'absolute', bottom: '2px', right: '2px', backgroundColor: '#b31f2f',
-                    border: '2px solid #0a0a0a', borderRadius: '50%', width: '26px', height: '26px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                    fontSize: '0.72rem', lineHeight: '1', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
-                    transform: 'scale(1)', transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = '#dc3c4f'
-                    e.currentTarget.style.transform = 'scale(1.12)'
-                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(179,31,47,0.55)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.backgroundColor = '#b31f2f'
-                    e.currentTarget.style.transform = 'scale(1)'
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)'
-                  }}
-                >
-                  📷
+
+                <div style={{ minWidth: 0, maxWidth: '100%', flex: cardLayout === 'narrow' ? 'none' : 1 }}>
+                  <h2 style={{ margin: '0 0 0.35rem 0', fontSize: cardLayout === 'wide' ? '1.6rem' : '1.4rem', fontWeight: 800, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>{user.username || user.email}</h2>
+                  <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: cardLayout === 'narrow' ? 'center' : 'flex-start', gap: '0.4rem' }}>
+                    <span>📅</span> Member since {formatDate(user.createdAt)}
+                  </p>
                 </div>
-                <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
               </div>
 
-              <div style={{ flex: isMobile ? 'none' : 1, minWidth: 0, width: isMobile ? '100%' : undefined }}>
-                <h2 style={{ margin: '0 0 0.35rem 0', fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}>{user.username || user.email}</h2>
-                <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.4rem' }}>
-                  <span>📅</span> Member since {formatDate(user.createdAt)}
-                </p>
-              </div>
-
-              {!isMobile && (
+              {cardLayout === 'wide' && (
                 <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
               )}
 
               <div style={{
-                display: 'flex', gap: isMobile ? '0.5rem' : '1rem', flexShrink: 0,
-                justifyContent: isMobile ? 'center' : 'flex-start',
-                width: isMobile ? '100%' : undefined
+                display: 'flex', flexShrink: 0,
+                gap: cardLayout === 'wide' ? '1rem' : cardLayout === 'medium' ? '0.75rem' : '0.45rem',
+                width: cardLayout === 'wide' ? undefined : '100%'
               }}>
                 <StatCard
                   count={watchedMovies.length}
                   label="Movies Watched"
+                  shortLabel="Watched"
                   icon="🎬"
                   isOpen={watchedOpen}
                   onClick={() => setWatchedOpen(!watchedOpen)}
-                  isMobile={isMobile}
+                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
                 />
                 <StatCard
                   count={watchlist.length}
@@ -577,7 +609,7 @@ function Profile() {
                   icon="🎯"
                   isOpen={watchlistOpen}
                   onClick={() => setWatchlistOpen(!watchlistOpen)}
-                  isMobile={isMobile}
+                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
                 />
                 <StatCard
                   count={favorites.length}
@@ -585,7 +617,7 @@ function Profile() {
                   icon="❤️"
                   isOpen={favoritesOpen}
                   onClick={() => setFavoritesOpen(!favoritesOpen)}
-                  isMobile={isMobile}
+                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
                 />
               </div>
             </div>

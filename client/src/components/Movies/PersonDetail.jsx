@@ -4,7 +4,7 @@ import { fetchPerson, getCachedPerson } from '../../api/personCache'
 import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
 import TMDBMovieModal from './TMDBMovieModal'
@@ -98,9 +98,7 @@ function PersonDetail() {
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <style>{`@keyframes personContentFadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }`}</style>
       <Navbar>
-        <NavButton onClick={goBack}>
-          ← Back
-        </NavButton>
+        <BackButton onClick={goBack}>Back</BackButton>
       </Navbar>
 
       {error && <p style={{ color: '#dc3c4f', textAlign: 'center', marginTop: '3rem' }}>{error}</p>}

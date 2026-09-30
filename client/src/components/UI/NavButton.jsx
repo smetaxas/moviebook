@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import useIsMobile from '../../hooks/useIsMobile'
 
 // variant 'solid' = primary red pill (e.g. Search), 'ghost' = translucent secondary action
 function NavButton({ onClick, icon, children, variant = 'ghost', active = false }) {
   const [hover, setHover] = useState(false)
+  const isMobile = useIsMobile()
   const solid = variant === 'solid'
 
   const backgroundColor = solid
@@ -22,9 +24,9 @@ function NavButton({ onClick, icon, children, variant = 'ghost', active = false 
       onMouseLeave={() => setHover(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: '0.55rem',
-        padding: icon ? '0.55rem 1.35rem 0.55rem 1.1rem' : '0.55rem 1.25rem',
+        padding: isMobile ? '0.5rem 0.9rem' : (icon ? '0.55rem 1.35rem 0.55rem 1.1rem' : '0.55rem 1.25rem'),
         backgroundColor, color, border,
-        borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem',
+        borderRadius: '8px', cursor: 'pointer', fontWeight: 600, fontSize: isMobile ? '0.85rem' : '0.9rem', whiteSpace: 'nowrap',
         boxShadow: solid ? (hover ? '0 6px 16px rgba(179,31,47,0.45)' : '0 2px 6px rgba(179,31,47,0.2)') : 'none',
         transform: hover ? 'translateY(-1px)' : 'translateY(0)',
         transition: 'background-color 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s'

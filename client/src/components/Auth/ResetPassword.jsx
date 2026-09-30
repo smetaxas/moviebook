@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import api from '../../api/axios'
 import BadRequest from '../BadRequest'
-import Emoji from '../UI/Emoji'
+import PasswordToggle from './PasswordToggle'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function ResetPassword() {
@@ -107,12 +107,9 @@ function ResetPassword() {
                     autoFocus
                     style={{ ...inputStyle, paddingRight: '3rem' }}
                   />
-                  <span
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-                  >
-                    <Emoji>{showPassword ? '🙈' : '👁️'}</Emoji>
-                  </span>
+                  <div style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)' }}>
+                    <PasswordToggle visible={showPassword} onToggle={() => setShowPassword(v => !v)} />
+                  </div>
                 </div>
                 {passwordStrength && (
                   <div style={{ marginTop: '0.5rem' }}>
@@ -138,12 +135,9 @@ function ResetPassword() {
                     required
                     style={{ ...inputStyle, paddingRight: '3rem' }}
                   />
-                  <span
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', fontSize: '1.2rem' }}
-                  >
-                    <Emoji>{showConfirmPassword ? '🙈' : '👁️'}</Emoji>
-                  </span>
+                  <div style={{ position: 'absolute', right: '0.85rem', top: '50%', transform: 'translateY(-50%)' }}>
+                    <PasswordToggle visible={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} />
+                  </div>
                 </div>
               </div>
 

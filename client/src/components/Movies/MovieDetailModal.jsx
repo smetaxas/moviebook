@@ -14,6 +14,7 @@ import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
 import TrailerModal from '../UI/TrailerModal'
 import WatchProviderLogos from '../UI/WatchProviderLogos'
 import FadeInImage from '../UI/FadeInImage'
+import { DirectorLink, MovieFacts } from '../UI/MovieMeta'
 import { buildNavState } from '../../utils/navState'
 
 const RATING_LABELS = { 1: 'Not for me', 2: 'It was okay', 3: 'Liked it', 4: 'Really liked it', 5: 'Loved it!' }
@@ -202,11 +203,6 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated,
   const isOwner = watchedMovie?.user_id === currentUserId || watchedMovie?.user_id?._id === currentUserId
   const displayRating = hoverRating || rating || 0
 
-  const metaLine = tmdbMovie
-    ? [tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, tmdbMovie.release_date ? formatDate(tmdbMovie.release_date) : null]
-        .filter(Boolean)
-    : []
-
   // Renders the header immediately from whatever the caller already knew
   // (poster grid item) before the real fetch resolves, same as TMDBMovieModal.
   const display = watchedMovie || initialMovie || {}
@@ -314,29 +310,31 @@ function MovieDetailModal({ watchedMovieId, onClose, onDeleted, onRatingUpdated,
                   />
                 )}
                 <div style={{ flex: 1, paddingTop: isMobile ? '82px' : '132px', minWidth: 0 }}>
-                  <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800' }}>
+                  <h2 style={{ color: 'white', margin: '0 0 0.3rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800', lineHeight: 1.2 }}>
                     {display.movie_title} <span style={{ color: '#aaa', fontWeight: '400' }}>({display.movie_year})</span>
                   </h2>
-                  {(metaLine.length > 0 || tmdbMovie?.director) && (
-                    <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>
-                      {tmdbMovie?.director && (
-                        <>
-                          <span
-                            onClick={() => tmdbMovie.director.id && goToPerson(tmdbMovie.director)}
-                            style={{ cursor: tmdbMovie.director.id ? 'pointer' : 'default', transition: 'color 0.15s' }}
-                            onMouseEnter={e => { if (tmdbMovie.director.id) { e.currentTarget.style.color = '#dc3c4f'; prefetchPerson(tmdbMovie.director.id, tmdbMovie.director.role) } }}
-                            onMouseLeave={e => { e.currentTarget.style.color = '#aaa' }}
-                          >
-                            {tmdbMovie.director.name}
-                          </span>
-                          {metaLine.length > 0 && '  ·  '}
-                        </>
-                      )}
-                      {metaLine.join('  ·  ')}
-                    </p>
+                  <DirectorLink
+                    director={tmdbMovie?.director}
+                    onClick={goToPerson}
+                    onHover={(d) => prefetchPerson(d.id, d.role)}
+                    isMobile={isMobile}
+                  />
+                  {/* Desktop: runtime, date and genres sit under the title. On a
+                      phone this column is only ~190px wide (it shares the row with
+                      the poster), so they go in a full-width row below instead. */}
+                  {!isMobile && tmdbMovie && (
+                    <MovieFacts genres={tmdbMovie.genres} runtime={tmdbMovie.runtime} releaseDate={tmdbMovie.release_date} style={{ marginTop: '0.7rem' }} />
                   )}
                 </div>
               </div>
+
+              {isMobile && tmdbMovie && (
+                <MovieFacts
+                  genres={tmdbMovie.genres} runtime={tmdbMovie.runtime} releaseDate={tmdbMovie.release_date}
+                  isMobile
+                  style={{ padding: '0.9rem 1rem 0', animation: 'movieContentFadeIn 0.35s ease' }}
+                />
+              )}
 
               <div style={{ padding: isMobile ? '1.25rem 1rem 1.5rem 1rem' : '1.5rem 2rem 2rem 2rem' }}>
                 {!tmdbMovie ? <MovieDetailsSkeleton /> : (

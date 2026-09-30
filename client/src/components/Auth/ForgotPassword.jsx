@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
+import BackButton from '../UI/BackButton'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -52,9 +53,7 @@ function ForgotPassword() {
               If an account exists for <strong style={{ color: 'white' }}>{email}</strong>, a password reset link has been sent. Check your inbox.
             </p>
             <p style={{ textAlign: 'center' }}>
-              <span onClick={() => navigate('/login')} style={{ color: '#b31f2f', cursor: 'pointer', fontWeight: 'bold' }}>
-                ← Back to Login
-              </span>
+              <BackButton variant="link" onClick={() => navigate('/login')}>Back to Login</BackButton>
             </p>
           </>
         ) : (
@@ -94,9 +93,7 @@ function ForgotPassword() {
             </form>
 
             <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <span onClick={() => navigate('/login')} style={{ color: '#b31f2f', cursor: 'pointer', fontWeight: 'bold' }}>
-                ← Back to Login
-              </span>
+              <BackButton variant="link" onClick={() => navigate('/login')}>Back to Login</BackButton>
             </p>
           </>
         )}

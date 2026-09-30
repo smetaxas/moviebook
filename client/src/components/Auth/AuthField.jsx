@@ -22,11 +22,12 @@ function AuthField({ label, icon, type = 'text', rightSlot, style, ...rest }) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           style={{
-            width: '100%', padding: `0.75rem ${rightSlot ? '2.75rem' : '0.9rem'} 0.75rem ${icon ? '2.5rem' : '0.9rem'}`,
+            width: '100%', padding: `0.8rem ${rightSlot ? '2.75rem' : '0.9rem'} 0.8rem ${icon ? '2.5rem' : '0.9rem'}`,
             borderRadius: '12px',
             border: '1px solid ' + (focused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
             backgroundColor: 'rgba(255,255,255,0.05)', color: 'white',
-            boxSizing: 'border-box', fontSize: '0.95rem', outline: 'none',
+            // 16px minimum: anything smaller makes iOS Safari zoom in on focus.
+            boxSizing: 'border-box', fontSize: '1rem', outline: 'none',
             boxShadow: focused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
             transition: 'border-color 0.2s, box-shadow 0.2s'
           }}

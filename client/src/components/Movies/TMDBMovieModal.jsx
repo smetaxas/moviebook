@@ -13,6 +13,7 @@ import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
 import TrailerModal from '../UI/TrailerModal'
 import WatchProviderLogos from '../UI/WatchProviderLogos'
 import FadeInImage from '../UI/FadeInImage'
+import { DirectorLink, MovieFacts } from '../UI/MovieMeta'
 import { buildNavState } from '../../utils/navState'
 
 function TMDBMovieModal({ movie, onClose, onLogMovie, onWatchlistChange, onFavoriteChange, hideCommunityLink }) {
@@ -261,11 +262,6 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, onWatchlistChange, onFavor
     })
   }
 
-  const metaLine = tmdbMovie
-    ? [tmdbMovie.genres?.join(', '), tmdbMovie.runtime ? `${tmdbMovie.runtime} min` : null, formatDate(tmdbMovie.release_date)]
-        .filter(Boolean)
-    : []
-
   // Whether WatchProviderLogos will render the full logo card vs a compact
   // status pill — decides where it sits in the layout below.
   const hasProviders = ['flatrate', 'rent', 'buy'].some(c => providers?.[c]?.length > 0)
@@ -382,27 +378,31 @@ function TMDBMovieModal({ movie, onClose, onLogMovie, onWatchlistChange, onFavor
                 />
               )}
               <div style={{ flex: 1, paddingTop: isMobile ? '82px' : '132px', minWidth: 0 }}>
-                <h2 style={{ color: 'white', margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800' }}>
+                <h2 style={{ color: 'white', margin: '0 0 0.3rem 0', fontSize: isMobile ? '1.2rem' : '1.6rem', fontWeight: '800', lineHeight: 1.2 }}>
                   {tmdbMovie?.title || movie.title} <span style={{ color: '#aaa', fontWeight: '400' }}>({tmdbMovie?.year || movie.year})</span>
                 </h2>
-                <p style={{ color: '#aaa', margin: 0, fontSize: '0.85rem' }}>
-                  {tmdbMovie?.director && (
-                    <>
-                      <span
-                        onClick={() => tmdbMovie.director.id && goToPerson(tmdbMovie.director)}
-                        style={{ cursor: tmdbMovie.director.id ? 'pointer' : 'default', transition: 'color 0.15s' }}
-                        onMouseEnter={e => { if (tmdbMovie.director.id) { e.currentTarget.style.color = '#dc3c4f'; prefetchPerson(tmdbMovie.director.id, tmdbMovie.director.role) } }}
-                        onMouseLeave={e => { e.currentTarget.style.color = '#aaa' }}
-                      >
-                        {tmdbMovie.director.name}
-                      </span>
-                      {metaLine.length > 0 && '  ·  '}
-                    </>
-                  )}
-                  {metaLine.join('  ·  ')}
-                </p>
+                <DirectorLink
+                  director={tmdbMovie?.director}
+                  onClick={goToPerson}
+                  onHover={(d) => prefetchPerson(d.id, d.role)}
+                  isMobile={isMobile}
+                />
+                {/* Desktop: runtime, date and genres sit under the title. On a
+                    phone this column is only ~190px wide (it shares the row with
+                    the poster), so they go in a full-width row below instead. */}
+                {!isMobile && tmdbMovie && (
+                  <MovieFacts genres={tmdbMovie.genres} runtime={tmdbMovie.runtime} releaseDate={tmdbMovie.release_date} style={{ marginTop: '0.7rem' }} />
+                )}
               </div>
             </div>
+
+            {isMobile && tmdbMovie && (
+              <MovieFacts
+                genres={tmdbMovie.genres} runtime={tmdbMovie.runtime} releaseDate={tmdbMovie.release_date}
+                isMobile
+                style={{ padding: '0.9rem 1rem 0', animation: 'movieContentFadeIn 0.35s ease' }}
+              />
+            )}
 
             <div style={{ padding: isMobile ? '1.25rem 1rem 1.5rem 1rem' : '1.5rem 2rem 2rem 2rem' }}>
               {!tmdbMovie ? <MovieDetailsSkeleton /> : (

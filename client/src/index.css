@@ -3,6 +3,9 @@
   padding: 0;
   box-sizing: border-box;
   font-family: 'Inter', system-ui, sans-serif;
+  /* No blue flash over whatever you tap on a phone (mobile browsers draw
+     one by default). Buttons still give feedback via button:active below. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 :root {
@@ -23,6 +26,14 @@
 @media (width < 768px) {
   :root {
     --nav-h: 64px;
+  }
+
+  /* iOS Safari zooms the whole page in when you focus a field whose text is
+     smaller than 16px (and doesn't zoom back out). The inputs here are
+     styled inline at 13-15px for desktop, hence !important. The 2FA code
+     boxes (.code-input) are deliberately larger already, so they're skipped. */
+  input:not(.code-input), textarea, select {
+    font-size: 16px !important;
   }
 }
 

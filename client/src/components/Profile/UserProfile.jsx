@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
+import { useNavigate, useParams, useLocation, useNavigationType } from 'react-router-dom'
 import api from '../../api/axios'
 import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
@@ -9,7 +9,7 @@ import LogMovieModal from '../Movies/LogMovieModal'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Emoji from '../UI/Emoji'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import Avatar from '../UI/Avatar'
 import UserNotFound from '../UserNotFound'
 import useIsMobile from '../../hooks/useIsMobile'
@@ -81,14 +81,18 @@ function UserProfile() {
   const { userId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const navigationType = useNavigationType()
   const isMobile = useIsMobile()
 
   const goBack = () => {
     const { backTo, ...reopenState } = location.state || {}
     if (backTo) {
       navigate(backTo, { state: reopenState })
-    } else {
+    } else if (window.history.state?.idx > 0) {
       navigate(-1)
+    } else {
+      // Nothing to go back to (profile opened directly, e.g. in a new tab).
+      navigate('/profile')
     }
   }
 
@@ -104,16 +108,32 @@ function UserProfile() {
   // backTo IS present, this state is just passing through (carried by a
   // comment-avatar click) for our own "Go Back" to forward later, not
   // something to act on immediately.
+  //
+  // Runs on every navigation, not just on mount: /user/A -> /user/B reuses
+  // this same component instance, so a mount-only effect never saw the trip
+  // back from B to A. The modal wasn't reopened and — worse — the original
+  // backTo was never restored, leaving "Back" to fall through to browser
+  // history, which bounced between A and B forever.
   useEffect(() => {
     if (location.state?.reopenWatchedMovie && !location.state?.backTo) {
+      setSelectedWatchlistMovie(null)
       setSelectedWatchedMovie({ _id: location.state.reopenWatchedMovie })
       navigate(location.pathname, { replace: true, state: resumeAfter(location) })
     } else if (location.state?.reopenMovieDetails && !location.state?.backTo) {
+      setSelectedWatchedMovie(null)
       setSelectedWatchlistMovie(location.state.reopenMovieDetails)
       navigate(location.pathname, { replace: true, state: resumeAfter(location) })
+    } else if (navigationType === 'PUSH') {
+      // A fresh forward arrival (e.g. clicked a commenter inside a movie
+      // modal on another user's profile): that modal belonged to the page
+      // we just left, so it shouldn't still be open over this one. Not on
+      // REPLACE — that's our own state clean-up just above.
+      setSelectedWatchedMovie(null)
+      setSelectedWatchlistMovie(null)
+      setMovieToLog(null)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [location.key])
 
   const fetchUser = async () => {
     try {
@@ -163,9 +183,7 @@ function UserProfile() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <Navbar>
-        <NavButton onClick={goBack}>
-          ← Back
-        </NavButton>
+        <BackButton onClick={goBack}>Back</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>

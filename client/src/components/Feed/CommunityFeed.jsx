@@ -5,7 +5,7 @@ import { prefetchMovie } from '../../api/movieCache'
 import { buildNavState, resumeAfter } from '../../utils/navState'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import Avatar from '../UI/Avatar'
 import GiphyPicker from '../UI/GiphyPicker'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
@@ -14,6 +14,9 @@ import useIsMobile from '../../hooks/useIsMobile'
 
 function CommunityFeed() {
   const [query, setQuery] = useState('')
+  // What was typed in the search box when the current movie was picked —
+  // restored when going back from its comments to the search.
+  const [searchBeforeSelect, setSearchBeforeSelect] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
@@ -69,7 +72,7 @@ function CommunityFeed() {
   }
 
   const goToUser = (userId) => {
-    navigate(`/user/${userId}`, { state: buildNavState(location, { reopenMovie: selectedMovie }) })
+    navigate(`/user/${userId}`, { state: buildNavState(location, { reopenMovie: selectedMovie, reopenQuery: searchBeforeSelect }) })
   }
 
   // Returning to wherever a movie's own "Community Comments" button sent us
@@ -77,12 +80,25 @@ function CommunityFeed() {
   // translates the returnReopen* payload it carried through back into the
   // standard reopenWatchedMovie/reopenMovieDetails fields `backTo` already
   // knows how to consume, same "go back and reopen" contract PersonDetail
-  // and UserProfile's own goBack use. No backTo (e.g. arrived via the
-  // navbar, not a movie modal) just falls back to plain browser history.
+  // and UserProfile's own goBack use.
+  //
+  // No backTo means we got here from the navbar's Community button on the
+  // Profile page (the only other way in). That case deliberately doesn't
+  // use browser history: returning from a commenter's profile PUSHES this
+  // page again, so history's previous entry is that profile — "Back" from
+  // the comments would bounce straight back to it. Instead it steps back
+  // through this page's own levels: comments -> search -> Profile.
+  const backToSearch = () => {
+    setSelectedMovie(null)
+    setWatchedMovies([])
+    setQuery(searchBeforeSelect)
+  }
+
   const goBack = () => {
     const { backTo, returnReopenWatchedMovie, returnReopenMovieDetails } = location.state || {}
     if (!backTo) {
-      navigate(-1)
+      if (selectedMovie) backToSearch()
+      else navigate('/profile')
       return
     }
     const reopenState = {}
@@ -91,8 +107,9 @@ function CommunityFeed() {
     navigate(backTo, { state: reopenState })
   }
 
-  const handleSelectMovie = async (movie) => {
+  const handleSelectMovie = async (movie, previousQuery = query) => {
     setSelectedMovie(movie)
+    setSearchBeforeSelect(previousQuery)
     setQuery('')
     setSearchResults([])
     setLoading(true)
@@ -126,12 +143,12 @@ function CommunityFeed() {
     }
 
     if (location.state?.reopenMovieDetails) {
-      handleSelectMovie(location.state.reopenMovieDetails).then(() => {
+      handleSelectMovie(location.state.reopenMovieDetails, location.state.reopenQuery || '').then(() => {
         setShowMovieDetails(true)
       })
       navigate(location.pathname, { replace: true, state: carryForward() })
     } else if (location.state?.reopenMovie) {
-      handleSelectMovie(location.state.reopenMovie).then(() => {
+      handleSelectMovie(location.state.reopenMovie, location.state.reopenQuery || '').then(() => {
         requestAnimationFrame(() => scrollToComments())
       })
       navigate(location.pathname, { replace: true, state: carryForward() })
@@ -230,23 +247,56 @@ function CommunityFeed() {
 
   const hasOwnLog = watchedMovies.some(w => w.user_id?._id === currentUserId)
 
+  // Grid and cell for the search results.
+  const posterGridStyle = {
+    display: 'grid',
+    gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '84px' : '120px'}, 1fr))`,
+    gap: isMobile ? '0.75rem' : '1rem'
+  }
+
+  const renderPosterCell = (movie) => (
+    <div
+      key={movie.tmdb_id}
+      onClick={() => handleSelectMovie(movie)}
+      style={{ textAlign: 'center', cursor: 'pointer', borderRadius: '10px', transition: 'transform 0.2s, box-shadow 0.2s' }}
+      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.45)'; prefetchMovie(movie.tmdb_id) }}
+      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      {movie.poster_url ? (
+        <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', aspectRatio: '2 / 3', objectFit: 'cover', borderRadius: '10px', display: 'block' }} />
+      ) : (
+        <div style={{ width: '100%', aspectRatio: '2 / 3', backgroundColor: '#1a1a1a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ color: '#aaa' }}>No Poster</span>
+        </div>
+      )}
+      {/* Two lines max, so one long title doesn't make its cell taller
+          than its neighbours and knock the row out of line. */}
+      <p style={{
+        color: 'white', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.15rem', fontWeight: 600, lineHeight: 1.25,
+        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+      }}>{movie.title}</p>
+      <p style={{ color: '#888', fontSize: '0.75rem', margin: 0 }}>{movie.year}</p>
+    </div>
+  )
+
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <Navbar>
-        <NavButton onClick={goBack}>
-          ← Back
-        </NavButton>
+        <BackButton onClick={goBack}>Back</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '760px', margin: '0 auto' }}>
 
         {/* Intro */}
         {!selectedMovie && (
-          <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-            <h2 style={{ margin: '0 0 0.4rem 0', fontSize: isMobile ? '1.35rem' : '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}>
+          <div style={{ textAlign: 'center', margin: isMobile ? '0.35rem 0 1.1rem' : '0.5rem 0 1.75rem' }}>
+            <h2 style={{ margin: '0 0 0.4rem 0', fontSize: isMobile ? '1.45rem' : '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
               🌍 Community Feed
             </h2>
-            <p style={{ color: '#999', margin: 0, fontSize: '0.9rem' }}>
+            {/* Always one line: never wraps, and the text scales down with
+                the screen width on small phones instead (full size from
+                ~450px up). */}
+            <p style={{ color: '#999', margin: 0, fontSize: 'clamp(0.6rem, 3.2vw, 0.9rem)', lineHeight: 1.45, whiteSpace: 'nowrap' }}>
               Pick a movie and see what everyone's saying about it.
             </p>
           </div>
@@ -258,7 +308,7 @@ function CommunityFeed() {
             position: 'relative', overflow: 'hidden',
             background: 'linear-gradient(135deg, rgba(179,31,47,0.08) 0%, rgba(255,255,255,0.03) 60%)',
             border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px',
-            padding: cardPad, marginBottom: isMobile ? '1.1rem' : '1.5rem',
+            padding: isMobile ? '0.75rem' : cardPad, marginBottom: isMobile ? '1.1rem' : '1.5rem',
             boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
           }}>
             <div style={{ position: 'relative' }}>
@@ -290,26 +340,8 @@ function CommunityFeed() {
             )}
 
             {searchResults.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '84px' : '120px'}, 1fr))`, gap: isMobile ? '0.75rem' : '1rem', marginTop: '1.25rem' }}>
-                {searchResults.map(movie => (
-                  <div
-                    key={movie.tmdb_id}
-                    onClick={() => handleSelectMovie(movie)}
-                    style={{ textAlign: 'center', cursor: 'pointer', borderRadius: '10px', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.45)'; prefetchMovie(movie.tmdb_id) }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none' }}
-                  >
-                    {movie.poster_url ? (
-                      <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '10px', display: 'block' }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '180px', backgroundColor: '#1a1a1a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ color: '#aaa' }}>No Poster</span>
-                      </div>
-                    )}
-                    <p style={{ color: 'white', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.15rem', fontWeight: 600 }}>{movie.title}</p>
-                    <p style={{ color: '#888', fontSize: '0.75rem', margin: 0 }}>{movie.year}</p>
-                  </div>
-                ))}
+              <div style={{ ...posterGridStyle, marginTop: '1.25rem' }}>
+                {searchResults.map(renderPosterCell)}
               </div>
             )}
           </div>
@@ -331,7 +363,7 @@ function CommunityFeed() {
 
             <div style={{ position: 'relative', display: 'flex', gap: isMobile ? '0.9rem' : '1.25rem', alignItems: 'center' }}>
               <button
-                onClick={() => { setSelectedMovie(null); setWatchedMovies([]) }}
+                onClick={backToSearch}
                 aria-label="Back to search"
                 title="Back to search"
                 style={{

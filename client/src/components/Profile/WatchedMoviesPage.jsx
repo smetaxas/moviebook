@@ -5,7 +5,7 @@ import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import Navbar from '../UI/Navbar'
-import NavButton from '../UI/NavButton'
+import BackButton from '../UI/BackButton'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
 
 function WatchedMoviesPage() {
@@ -50,9 +50,7 @@ function WatchedMoviesPage() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
       <Navbar>
-        <NavButton onClick={() => navigate('/profile')}>
-          ← Back to Profile
-        </NavButton>
+        <BackButton onClick={() => navigate('/profile')}>Back to Profile</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>

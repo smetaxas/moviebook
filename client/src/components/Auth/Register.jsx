@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
 import useIsMobile from '../../hooks/useIsMobile'
 import ReCAPTCHA from 'react-google-recaptcha'
-import Emoji from '../UI/Emoji'
 import AuthField from './AuthField'
+import PasswordToggle from './PasswordToggle'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
+import BackButton from '../UI/BackButton'
 
 const POSTER_URLS = [
   'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
@@ -95,22 +96,11 @@ function Register() {
 
   const strengthColor = passwordStrength === 'weak' ? '#dc3c4f' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
 
-  const eyeToggle = (value, setter) => (
-    <span
-      onClick={() => setter(!value)}
-      style={{ cursor: 'pointer', fontSize: '1.1rem', opacity: 0.75, transition: 'opacity 0.15s' }}
-      onMouseEnter={e => { e.currentTarget.style.opacity = 1 }}
-      onMouseLeave={e => { e.currentTarget.style.opacity = 0.75 }}
-    >
-      <Emoji>{value ? '🙈' : '👁️'}</Emoji>
-    </span>
-  )
-
   return (
     <div style={{
       minHeight: '100vh', backgroundColor: '#0a0a0a',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      overflow: 'hidden', position: 'relative', padding: '2rem 1rem'
+      overflow: 'hidden', position: 'relative', padding: '4.25rem 1rem 2rem'
     }}>
       <style>{`
         @keyframes scrollLeft {
@@ -149,6 +139,11 @@ function Register() {
         position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
         background: 'rgba(0,0,0,0.75)'
       }} />
+
+      {/* Back to the home page, same as on the login page. */}
+      <BackButton onClick={() => navigate('/')} style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 11 }}>
+        Home
+      </BackButton>
 
       <div style={{
         position: 'relative', overflow: 'hidden', zIndex: 10,
@@ -232,7 +227,7 @@ function Register() {
                   required
                   autoComplete="new-password"
                   passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
-                  rightSlot={eyeToggle(showPassword, setShowPassword)}
+                  rightSlot={<PasswordToggle visible={showPassword} onToggle={() => setShowPassword(v => !v)} />}
                 />
                 {passwordStrength && (
                   <div style={{ marginTop: '0.5rem' }}>
@@ -257,7 +252,7 @@ function Register() {
                 required
                 autoComplete="new-password"
                 passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
-                rightSlot={eyeToggle(showConfirmPassword, setShowConfirmPassword)}
+                rightSlot={<PasswordToggle visible={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} />}
               />
             </div>
 
