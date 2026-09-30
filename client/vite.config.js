@@ -2,6 +2,18 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'fs'
 
+// Local HTTPS certificate for the dev server. These files are NOT in git
+// (a private key doesn't belong in a repository), so they only exist on a
+// machine where they've been generated — e.g. with mkcert:
+//   mkcert -key-file localhost-key.pem -cert-file localhost.pem localhost
+// Without them the dev server simply runs over plain http, and production
+// builds (Vercel) never need them at all.
+const KEY_FILE = './localhost-key.pem'
+const CERT_FILE = './localhost.pem'
+const https = fs.existsSync(KEY_FILE) && fs.existsSync(CERT_FILE)
+  ? { key: fs.readFileSync(KEY_FILE), cert: fs.readFileSync(CERT_FILE) }
+  : undefined
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -14,9 +26,6 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000'
     },
-    https: {
-      key: fs.readFileSync('./localhost-key.pem'),
-      cert: fs.readFileSync('./localhost.pem')
-    }
+    ...(https ? { https } : {})
   }
 })

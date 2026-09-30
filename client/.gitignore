@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 client/.env.local
+
+# Local HTTPS dev certificate (private key) — generate your own, never commit
+*.pem
