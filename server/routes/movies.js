@@ -16,8 +16,11 @@ router.get('/search', requireAuth, async (req, res) => {
       `https://api.themoviedb.org/3/search/movie?api_key=${process.env.TMDB_API_KEY}&query=${encodeURIComponent(q)}&language=en-US&sort_by=release_date.desc`
     );
     const data = await response.json();
-    const movies = data.results
-      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+    // TMDB's own order is by relevance (the film you meant first); newest-first
+    // buried it under obscure shorts with the same words in the title. Only
+    // poster-less entries — almost always those — are moved to the end.
+    const movies = (data.results || [])
+      .sort((a, b) => Number(!a.poster_path) - Number(!b.poster_path))
       .map(movie => ({
         tmdb_id: movie.id,
         title: movie.title,
@@ -94,13 +97,15 @@ router.get('/trending', requireAuth, async (req, res) => {
     const movies = data.results
       .map(movie => ({ ...movie, release_date: regionDateById.get(movie.id) || movie.release_date }))
       .filter(movie => movie.release_date && movie.release_date <= today)
-      .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
+      // Kept in TMDB's order — it's the trending rank the page shows (#1, #2…).
       .map(movie => ({
         tmdb_id: movie.id,
         title: movie.title,
         year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
+        release_date: movie.release_date,
         description: movie.overview,
-        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '',
+        backdrop_url: movie.backdrop_path ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}` : ''
       }));
     res.json(movies);
   } catch (err) {
@@ -333,8 +338,7 @@ router.get('/awarded', requireAuth, async (req, res) => {
         title: movie.title,
         year: movie.release_date ? new Date(movie.release_date).getFullYear() : null,
         description: movie.overview,
-        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : '',
-        rating: movie.vote_average ? Math.round(movie.vote_average * 10) / 10 : null
+        poster_url: movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : ''
       }));
     const availableCategories = Object.entries(categories).map(([key, c]) => ({ value: key, label: c.label }));
 
@@ -368,8 +372,15 @@ router.get('/genres', requireAuth, async (req, res) => {
 });
 
 // Get movies by genre
+// :genreId is one TMDB genre id or several comma-separated ("35,10749").
+// TMDB's with_genres treats commas as AND, so several ids mean movies that
+// are ALL of those genres (Comedy + Romance = romantic comedies).
 router.get('/genre/:genreId', requireAuth, async (req, res) => {
   try {
+    // It goes straight into the TMDB URL, so only allow ids and commas.
+    if (!/^\d+(,\d+){0,5}$/.test(req.params.genreId)) {
+      return res.status(400).json({ message: 'Invalid genre list' });
+    }
     const { yearFrom, yearTo } = req.query;
     const today = new Date().toISOString().split('T')[0];
 
@@ -534,27 +545,60 @@ router.get('/person/:personId', requireAuth, async (req, res) => {
       ? req.query.role
       : (data.known_for_department === 'Directing' ? 'director' : 'actor');
 
-    const movies = role === 'director'
-      ? (credits.crew || [])
-        .filter(m => m.job === 'Director' && m.poster_path && m.release_date)
-        .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
-        .map(m => ({
-          tmdb_id: m.id,
-          title: m.title,
-          character: 'Director',
-          year: new Date(m.release_date).getFullYear(),
-          poster_url: `https://image.tmdb.org/t/p/w342${m.poster_path}`
-        }))
-      : (credits.cast || [])
+    // TMDB's cast credits aren't a filmography: they also list every
+    // documentary, award show and "making of" the person merely appears in
+    // as themselves, plus films that only reuse old footage of them. For a
+    // famous director that's nearly all of it (Spielberg: 174 of 181 "acting"
+    // credits are "Self"). Keep only credited parts they actually played —
+    // voice work and narration still count. Uncredited parts are dropped
+    // too: they're background extras (Brad Pitt's 1987 "Boy at the Beach")
+    // and directors' cameos in their own films, which already appear in
+    // their "Directed" list.
+    const ownName = (data.name || '').toLowerCase();
+    const isRealRole = (m) => {
+      const character = (m.character || '').trim();
+      if (!character) return false;
+      if (/\bsel(f|ves)\b|\bhim\s*self\b|\bher\s*self\b|\bthemselves\b|archive footage|uncredited/i.test(character)) return false;
+      // a cameo as themselves under their own name: "Brad Pitt (uncredited)"
+      if (character.replace(/\(.*?\)/g, '').trim().toLowerCase() === ownName) return false;
+      return true;
+    };
+
+    const toCard = (m, character) => ({
+      tmdb_id: m.id,
+      title: m.title,
+      character,
+      year: new Date(m.release_date).getFullYear(),
+      release_date: m.release_date,
+      poster_url: `https://image.tmdb.org/t/p/w342${m.poster_path}`,
+      // how widely seen it is — for the filmography's "Known for" row and
+      // "Popular" sort (TMDB's rating itself isn't shown anywhere)
+      vote_count: m.vote_count || 0,
+      popularity: m.popularity || 0,
+      // position in the cast list (0 = top-billed); null for directing
+      // credits. Tells a lead role from a one-line cameo in a big film.
+      billing: typeof m.order === 'number' ? m.order : null
+    });
+    // newest first, one card per movie (TMDB repeats a movie when someone
+    // has several credits on it)
+    const prepare = (list, characterOf) => {
+      const seen = new Set();
+      return list
         .filter(m => m.poster_path && m.release_date)
         .sort((a, b) => new Date(b.release_date) - new Date(a.release_date))
-        .map(m => ({
-          tmdb_id: m.id,
-          title: m.title,
-          character: m.character,
-          year: new Date(m.release_date).getFullYear(),
-          poster_url: `https://image.tmdb.org/t/p/w342${m.poster_path}`
-        }));
+        .filter(m => !seen.has(m.id) && seen.add(m.id))
+        .map(m => toCard(m, characterOf(m)));
+    };
+
+    const directed = prepare((credits.crew || []).filter(m => m.job === 'Director'), () => 'Director');
+    const acted = prepare((credits.cast || []).filter(isRealRole), m => m.character);
+
+    // The list for the role they were opened as comes first; the other side
+    // of their career (if any) is sent as a second section.
+    const movies = role === 'director' ? directed : acted;
+    const secondary = role === 'director'
+      ? { role: 'actor', label: 'Acting', movies: acted }
+      : { role: 'director', label: 'Directed', movies: directed };
 
     const person = {
       id: data.id,
@@ -565,7 +609,9 @@ router.get('/person/:personId', requireAuth, async (req, res) => {
       place_of_birth: data.place_of_birth,
       known_for_department: data.known_for_department,
       profile_url: data.profile_path ? `https://image.tmdb.org/t/p/w500${data.profile_path}` : null,
-      movies
+      role,
+      movies,
+      secondary: secondary.movies.length ? secondary : null
     }
     res.json(person);
   } catch (err) {

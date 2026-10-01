@@ -127,6 +127,51 @@ router.delete('/profile', requireAuth, async (req, res) => {
   }
 });
 
+// Search other users by username. Returns public fields only (never email
+// or anything account-related), the searcher themselves excluded.
+// Usernames that START with the query rank first, then the rest A-Z.
+router.get('/search', requireAuth, async (req, res) => {
+  try {
+    const q = String(req.query.q || '').trim().slice(0, 50);
+    if (!q) return res.json([]);
+
+    // The query becomes a regex — escape it so ".*" or "(" are just text.
+    const pattern = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const matches = await User.find({
+      _id: { $ne: req.userId },
+      username: { $regex: pattern, $options: 'i' }
+    })
+      .select('username profile_photo createdAt')
+      .limit(50)
+      .lean();
+
+    const lower = q.toLowerCase();
+    const users = matches
+      .sort((a, b) =>
+        Number(b.username.toLowerCase().startsWith(lower)) - Number(a.username.toLowerCase().startsWith(lower)) ||
+        a.username.localeCompare(b.username))
+      .slice(0, 20);
+
+    // How many movies each has logged, for the result cards.
+    const WatchedMovie = require('../models/WatchedMovie');
+    const counts = await WatchedMovie.aggregate([
+      { $match: { user_id: { $in: users.map(u => u._id) } } },
+      { $group: { _id: '$user_id', count: { $sum: 1 } } }
+    ]);
+    const countById = new Map(counts.map(c => [String(c._id), c.count]));
+
+    res.json(users.map(u => ({
+      _id: u._id,
+      username: u.username,
+      profile_photo: u.profile_photo,
+      createdAt: u.createdAt,
+      watchedCount: countById.get(String(u._id)) || 0
+    })));
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+
 // Get public profile by user ID
 router.get('/profile/:userId', requireAuth, async (req, res) => {
   try {

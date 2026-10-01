@@ -10,7 +10,123 @@ import Avatar from '../UI/Avatar'
 import GiphyPicker from '../UI/GiphyPicker'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
 import LogMovieModal from '../Movies/LogMovieModal'
+import FadeInImage from '../UI/FadeInImage'
 import useIsMobile from '../../hooks/useIsMobile'
+
+const feedStyles = `
+  @keyframes cfFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes cfPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
+  @keyframes cfSpin { to { transform: rotate(360deg); } }
+  .cf-search, .cf-composer { transition: border-color 0.2s, box-shadow 0.2s; }
+  .cf-search:focus-within, .cf-composer:focus-within { border-color: rgba(220,60,79,0.75) !important; box-shadow: 0 0 0 3px rgba(179,31,47,0.18) !important; }
+  .cf-search-input::-webkit-search-cancel-button { -webkit-appearance: none; display: none; }
+  .cf-poster { cursor: pointer; min-width: 0; transition: transform 0.2s; -webkit-tap-highlight-color: transparent; }
+  .cf-poster:active { transform: scale(0.97); }
+  .cf-poster .cf-poster-img { transition: box-shadow 0.2s; }
+  .cf-chip { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.22rem 0.6rem; border-radius: 999px; font-size: 0.74rem; font-weight: 700; color: #ddd; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); white-space: nowrap; }
+  .cf-btn { padding: 0.5rem 0.95rem; border-radius: 10px; font-size: 0.8rem; font-weight: 700; cursor: pointer; color: white; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); transition: background-color 0.15s; -webkit-tap-highlight-color: transparent; }
+  .cf-btn-primary { background: #b31f2f; border-color: #b31f2f; box-shadow: 0 4px 14px rgba(179,31,47,0.35); }
+  .cf-send, .cf-gif, .cf-icon-btn, .cf-delete, .cf-hero-poster { -webkit-tap-highlight-color: transparent; transition: background-color 0.15s, color 0.15s, opacity 0.15s; }
+  @media (hover: hover) {
+    .cf-poster:hover { transform: translateY(-4px); }
+    .cf-poster:hover .cf-poster-img { box-shadow: 0 14px 30px rgba(0,0,0,0.55), 0 0 0 2px rgba(220,60,79,0.6); }
+    .cf-btn:hover { background: rgba(255,255,255,0.15); transform: none; filter: none; }
+    .cf-btn-primary:hover { background: #dc3c4f; }
+    .cf-name:hover { color: #ff6b7d; }
+    .cf-delete:hover { color: #dc3c4f !important; background: rgba(179,31,47,0.12) !important; transform: none; filter: none; }
+    .cf-gif:hover, .cf-icon-btn:hover { background: rgba(255,255,255,0.16) !important; transform: none; filter: none; }
+    .cf-send:not(:disabled):hover { background: #dc3c4f !important; transform: none; filter: none; }
+    .cf-hero-poster:hover { transform: none; filter: brightness(1.1); }
+  }
+`
+
+const icon = (children, size = 16) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+)
+const ICONS = {
+  search: icon(<><circle cx="11" cy="11" r="7" /><line x1="16.5" y1="16.5" x2="21" y2="21" /></>),
+  trash: icon(<><path d="M4 7h16" /><path d="M9 7V4.5h6V7" /><path d="M6.5 7l1 12.5h9l1-12.5" /></>, 14),
+  send: icon(<><path d="M5 12h13" /><path d="M13 6l6 6-6 6" /></>, 17),
+}
+
+const formatDate = (dateString) => new Date(dateString).toLocaleDateString('en-GB', {
+  day: 'numeric', month: 'long', year: 'numeric'
+})
+
+// "just now", "5m ago", "3h ago", "2d ago", then the date.
+const timeAgo = (dateString) => {
+  const s = (Date.now() - new Date(dateString)) / 1000
+  if (s < 60) return 'just now'
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)}d ago`
+  return 'on ' + new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const StarRating = ({ rating, size = 13 }) => (
+  <span style={{ display: 'inline-flex', gap: '1px', verticalAlign: 'middle' }}>
+    {[1, 2, 3, 4, 5].map(i => (
+      <span key={i} style={{ fontSize: size, lineHeight: 1, color: i <= Math.round(rating) ? '#ff4d61' : 'rgba(255,255,255,0.18)' }}>★</span>
+    ))}
+  </span>
+)
+
+// One comment box: the text, a GIF button and send, all in one pill, with
+// the chosen GIF previewed above it.
+function Composer({ value, onChange, onSubmit, gif, onRemoveGif, giphyOpen, onToggleGiphy, onPickGif, onCloseGiphy, busy, placeholder }) {
+  const canSend = (value.trim() || gif) && !busy
+  return (
+    <form onSubmit={onSubmit}>
+      {gif && (
+        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.6rem' }}>
+          <img src={gif} alt="Selected GIF" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', display: 'block' }} />
+          <button type="button" onClick={onRemoveGif} aria-label="Remove GIF" style={{
+            position: 'absolute', top: '-8px', right: '-8px', width: '24px', height: '24px', padding: 0,
+            borderRadius: '50%', backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.25)',
+            color: 'white', fontSize: '0.72rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}>✕</button>
+        </div>
+      )}
+      <div className="cf-composer" style={{
+        position: 'relative', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.3rem 0.3rem 0.3rem 0.95rem',
+        borderRadius: '999px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)'
+      }}>
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          maxLength={500}
+          aria-label={placeholder}
+          style={{ flex: 1, minWidth: 0, padding: '0.45rem 0', border: 'none', background: 'transparent', color: 'white', outline: 'none', fontSize: '16px' }}
+        />
+        <button type="button" className="cf-gif" onClick={onToggleGiphy} aria-label="Add a GIF" aria-pressed={giphyOpen} style={{
+          flexShrink: 0, height: '32px', padding: '0 0.65rem', borderRadius: '999px', cursor: 'pointer',
+          backgroundColor: giphyOpen ? 'rgba(179,31,47,0.2)' : 'rgba(255,255,255,0.07)',
+          border: '1px solid ' + (giphyOpen ? 'rgba(220,60,79,0.5)' : 'transparent'),
+          color: giphyOpen ? '#ff6b7d' : '#ccc', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.04em'
+        }}>GIF</button>
+        <button type="submit" className="cf-send" disabled={!canSend} aria-label="Post comment" style={{
+          flexShrink: 0, width: '34px', height: '34px', borderRadius: '50%', border: 'none', padding: 0,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: '#b31f2f', color: 'white', cursor: canSend ? 'pointer' : 'default', opacity: canSend ? 1 : 0.35
+        }}>
+          {busy
+            ? <span style={{ width: '14px', height: '14px', borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', animation: 'cfSpin 0.7s linear infinite' }} />
+            : ICONS.send}
+        </button>
+        {giphyOpen && (
+          <GiphyPicker
+            onSelect={onPickGif}
+            onClose={onCloseGiphy}
+            // Anchored to the comment box, so never wider than it.
+            style={{ width: 'min(320px, 100%)' }}
+          />
+        )}
+      </div>
+    </form>
+  )
+}
 
 function CommunityFeed() {
   const [query, setQuery] = useState('')
@@ -27,17 +143,14 @@ function CommunityFeed() {
   const [showGiphyFor, setShowGiphyFor] = useState(null)
   const [inputFocused, setInputFocused] = useState(false)
   const [newMovieComment, setNewMovieComment] = useState('')
-  const [movieCommentFocused, setMovieCommentFocused] = useState(false)
   const [showMovieGiphy, setShowMovieGiphy] = useState(false)
   const [selectedMovieGif, setSelectedMovieGif] = useState(null)
-  const [movieGifButtonHover, setMovieGifButtonHover] = useState(false)
   const [loggingComment, setLoggingComment] = useState(false)
   const [showMovieDetails, setShowMovieDetails] = useState(false)
   const [movieToLog, setMovieToLog] = useState(null)
   const navigate = useNavigate()
   const location = useLocation()
   const isMobile = useIsMobile()
-  const cardPad = isMobile ? '1rem' : '1.5rem'
 
   const currentUserId = JSON.parse(localStorage.getItem('user'))?.userId
   const commentsRef = useRef(null)
@@ -55,7 +168,7 @@ function CommunityFeed() {
     setSearching(true)
     const timer = setTimeout(async () => {
       try {
-        const res = await api.get(`/movies/search?q=${query}`)
+        const res = await api.get(`/movies/search?q=${encodeURIComponent(query.trim())}`)
         setSearchResults(res.data)
       } catch (err) {
         console.error('Search failed')
@@ -231,451 +344,300 @@ function CommunityFeed() {
     }
   }
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    })
-  }
-
-  const StarRating = ({ rating, size = 13 }) => (
-    <span style={{ display: 'inline-flex', gap: '1px', verticalAlign: 'middle' }}>
-      {[1, 2, 3, 4, 5].map(i => (
-        <span key={i} style={{ fontSize: size, lineHeight: 1, color: i <= Math.round(rating) ? '#dc3c4f' : 'rgba(255,255,255,0.15)' }}>★</span>
-      ))}
-    </span>
-  )
 
   const hasOwnLog = watchedMovies.some(w => w.user_id?._id === currentUserId)
-
-  // Grid and cell for the search results.
-  const posterGridStyle = {
-    display: 'grid',
-    gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? '84px' : '120px'}, 1fr))`,
-    gap: isMobile ? '0.75rem' : '1rem'
-  }
-
-  const renderPosterCell = (movie) => (
-    <div
-      key={movie.tmdb_id}
-      onClick={() => handleSelectMovie(movie)}
-      style={{ textAlign: 'center', cursor: 'pointer', borderRadius: '10px', transition: 'transform 0.2s, box-shadow 0.2s' }}
-      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 24px rgba(0,0,0,0.45)'; prefetchMovie(movie.tmdb_id) }}
-      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none' }}
-    >
-      {movie.poster_url ? (
-        <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', aspectRatio: '2 / 3', objectFit: 'cover', borderRadius: '10px', display: 'block' }} />
-      ) : (
-        <div style={{ width: '100%', aspectRatio: '2 / 3', backgroundColor: '#1a1a1a', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ color: '#aaa' }}>No Poster</span>
-        </div>
-      )}
-      {/* Two lines max, so one long title doesn't make its cell taller
-          than its neighbours and knock the row out of line. */}
-      <p style={{
-        color: 'white', fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.15rem', fontWeight: 600, lineHeight: 1.25,
-        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
-      }}>{movie.title}</p>
-      <p style={{ color: '#888', fontSize: '0.75rem', margin: 0 }}>{movie.year}</p>
-    </div>
-  )
+  const ratedLogs = watchedMovies.filter(w => w.rating > 0)
+  const avgRating = ratedLogs.length ? (ratedLogs.reduce((n, w) => n + w.rating, 0) / ratedLogs.length).toFixed(1) : null
+  const commentCount = watchedMovies.reduce((n, w) => n + (w.comments?.length || 0), 0)
+  const posterMin = isMobile ? '96px' : '125px'
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
+      <style>{feedStyles}</style>
       <Navbar>
         <BackButton onClick={goBack}>Back</BackButton>
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '760px', margin: '0 auto' }}>
 
-        {/* Intro */}
+        {/* ---------- Picking a movie ---------- */}
         {!selectedMovie && (
-          <div style={{ textAlign: 'center', margin: isMobile ? '0.35rem 0 1.1rem' : '0.5rem 0 1.75rem' }}>
-            <h2 style={{ margin: '0 0 0.4rem 0', fontSize: isMobile ? '1.45rem' : '1.75rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              🌍 Community Feed
-            </h2>
-            {/* Always one line: never wraps, and the text scales down with
-                the screen width on small phones instead (full size from
-                ~450px up). */}
-            <p style={{ color: '#999', margin: 0, fontSize: 'clamp(0.6rem, 3.2vw, 0.9rem)', lineHeight: 1.45, whiteSpace: 'nowrap' }}>
-              Pick a movie and see what everyone's saying about it.
-            </p>
-          </div>
-        )}
+          <>
+            <div style={{ textAlign: 'center', margin: isMobile ? '0.5rem 0 1.25rem' : '0.75rem 0 1.75rem' }}>
+              <p style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', margin: '0 0 0.45rem 0', color: '#dc3c4f', fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                <span style={{ width: '3px', height: '0.8rem', borderRadius: '2px', backgroundColor: '#dc3c4f' }} />
+                Community
+              </p>
+              <h2 style={{ margin: '0 0 0.4rem 0', fontSize: isMobile ? '1.55rem' : '1.9rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                What's everyone watching?
+              </h2>
+              {/* Always one line: never wraps, and the text scales down with
+                  the screen width on small phones instead (full size from
+                  ~450px up). */}
+              <p style={{ color: '#999', margin: 0, fontSize: 'clamp(0.6rem, 3.2vw, 0.9rem)', lineHeight: 1.45, whiteSpace: 'nowrap' }}>
+                Pick a movie and see what everyone's saying about it.
+              </p>
+            </div>
 
-        {/* Search Box */}
-        {!selectedMovie && (
-          <div style={{
-            position: 'relative', overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(179,31,47,0.08) 0%, rgba(255,255,255,0.03) 60%)',
-            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px',
-            padding: isMobile ? '0.75rem' : cardPad, marginBottom: isMobile ? '1.1rem' : '1.5rem',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
-          }}>
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: inputFocused ? '#dc3c4f' : '#666', fontSize: '1rem', transition: 'color 0.2s' }}>🔍</span>
+            <div className="cf-search" style={{
+              position: 'relative', display: 'flex', alignItems: 'center', height: '54px', borderRadius: '16px',
+              backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)', marginBottom: isMobile ? '1.25rem' : '1.75rem'
+            }}>
+              <span style={{ display: 'flex', padding: '0 0.75rem 0 1.05rem', color: inputFocused ? '#dc3c4f' : '#777', transition: 'color 0.2s' }}>
+                {searching
+                  ? <span style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid rgba(220,60,79,0.25)', borderTopColor: '#dc3c4f', animation: 'cfSpin 0.7s linear infinite' }} />
+                  : ICONS.search}
+              </span>
               <input
-                type="text"
+                type="search"
+                className="cf-search-input"
+                enterKeyHint="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => setInputFocused(true)}
                 onBlur={() => setInputFocused(false)}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
                 placeholder="Search for a movie..."
+                aria-label="Search for a movie"
                 style={{
-                  width: '100%', padding: '0.85rem 1rem 0.85rem 2.5rem', borderRadius: '12px',
-                  border: '1px solid ' + (inputFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
-                  backgroundColor: 'rgba(255,255,255,0.05)', color: 'white',
-                  boxSizing: 'border-box', fontSize: '0.95rem', outline: 'none',
-                  boxShadow: inputFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
-                  transition: 'border-color 0.2s, box-shadow 0.2s'
+                  flex: 1, minWidth: 0, height: '100%', padding: 0, border: 'none', background: 'transparent',
+                  color: 'white', outline: 'none', fontSize: isMobile ? '16px' : '1rem'
                 }}
               />
+              {query && (
+                <button type="button" className="cf-icon-btn" onClick={() => setQuery('')} aria-label="Clear search" style={{
+                  width: '30px', height: '30px', margin: '0 0.6rem', borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+                  backgroundColor: 'rgba(255,255,255,0.08)', color: '#ccc', fontSize: '0.75rem',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>✕</button>
+              )}
             </div>
 
-            {searching && (
-              <p style={{ color: '#666', fontSize: '0.8rem', textAlign: 'center', margin: '1rem 0 0 0' }}>Searching...</p>
+            {searching && searchResults.length === 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posterMin}, 1fr))`, gap: isMobile ? '1rem 0.65rem' : '1.4rem 1rem' }}>
+                {Array.from({ length: isMobile ? 6 : 10 }, (_, i) => (
+                  <div key={i}>
+                    <div style={{ aspectRatio: '2 / 3', borderRadius: '10px', backgroundColor: 'rgba(255,255,255,0.06)', animation: 'cfPulse 1.3s ease-in-out infinite' }} />
+                    <div style={{ height: '0.7rem', width: '75%', borderRadius: '4px', marginTop: '0.55rem', backgroundColor: 'rgba(255,255,255,0.06)', animation: 'cfPulse 1.3s ease-in-out infinite' }} />
+                  </div>
+                ))}
+              </div>
             )}
 
             {!searching && query.trim() && searchResults.length === 0 && (
-              <p style={{ color: '#666', fontSize: '0.85rem', textAlign: 'center', margin: '1rem 0 0 0' }}>No movies found for "{query}"</p>
+              <div style={{ textAlign: 'center', padding: '2.5rem 1rem', animation: 'cfFadeIn 0.25s ease' }}>
+                <p style={{ color: 'white', fontWeight: 700, margin: '0 0 0.3rem 0', overflowWrap: 'anywhere' }}>No movies found for “{query.trim()}”</p>
+                <p style={{ color: '#888', margin: 0, fontSize: '0.85rem' }}>Check the spelling, or try fewer words.</p>
+              </div>
             )}
 
             {searchResults.length > 0 && (
-              <div style={{ ...posterGridStyle, marginTop: '1.25rem' }}>
-                {searchResults.map(renderPosterCell)}
+              <div style={{
+                display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${posterMin}, 1fr))`,
+                gap: isMobile ? '1rem 0.65rem' : '1.4rem 1rem', opacity: searching ? 0.55 : 1, transition: 'opacity 0.2s',
+                animation: 'cfFadeIn 0.25s ease'
+              }}>
+                {searchResults.map(movie => (
+                  <div key={movie.tmdb_id} className="cf-poster" onClick={() => handleSelectMovie(movie)} onMouseEnter={() => prefetchMovie(movie.tmdb_id)}>
+                    <div className="cf-poster-img" style={{ aspectRatio: '2 / 3', borderRadius: '10px', overflow: 'hidden', backgroundColor: '#1a1a1a', boxShadow: '0 6px 16px rgba(0,0,0,0.4)' }}>
+                      {movie.poster_url
+                        ? <FadeInImage src={movie.poster_url} alt={movie.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                        : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#666', fontSize: '0.72rem' }}>No poster</div>}
+                    </div>
+                    {/* Two lines max, so one long title doesn't make its cell taller
+                        than its neighbours and knock the row out of line. */}
+                    <p style={{
+                      fontSize: isMobile ? '0.76rem' : '0.82rem', fontWeight: 700, lineHeight: 1.25, margin: '0.5rem 0 0.15rem 0',
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+                    }}>{movie.title}</p>
+                    <p style={{ color: '#8a8a8a', fontSize: '0.72rem', margin: 0 }}>{movie.year || '—'}</p>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
+          </>
         )}
 
-        {/* Selected Movie Hero */}
+        {/* ---------- The movie's community page ---------- */}
         {selectedMovie && (
           <div style={{
-            position: 'relative', overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
-            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '18px',
-            padding: cardPad, marginBottom: isMobile ? '1.1rem' : '1.5rem',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.3)'
+            position: 'relative', overflow: 'hidden', borderRadius: '20px', marginBottom: isMobile ? '1.1rem' : '1.5rem',
+            border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', backgroundColor: '#141414',
+            animation: 'cfFadeIn 0.3s ease'
           }}>
-            <div style={{
-              position: 'absolute', top: '-60px', right: '-60px', width: '200px', height: '200px',
-              background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
-            }} />
+            {/* the poster, blurred, as the backdrop */}
+            {selectedMovie.poster_url && (
+              <div aria-hidden="true" style={{
+                position: 'absolute', inset: '-40px', backgroundImage: `url(${selectedMovie.poster_url})`,
+                backgroundSize: 'cover', backgroundPosition: 'center', filter: 'blur(28px) brightness(0.45) saturate(1.2)'
+              }} />
+            )}
+            <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(10,10,10,0.35) 0%, rgba(10,10,10,0.85) 70%)' }} />
 
-            <div style={{ position: 'relative', display: 'flex', gap: isMobile ? '0.9rem' : '1.25rem', alignItems: 'center' }}>
-              <button
-                onClick={backToSearch}
-                aria-label="Back to search"
-                title="Back to search"
-                style={{
-                  position: 'absolute', top: '-0.75rem', right: '-0.75rem',
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)',
-                  color: '#aaa', width: '30px', height: '30px', borderRadius: '50%',
-                  cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'background-color 0.15s, color 0.15s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)'; e.currentTarget.style.color = 'white' }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#aaa' }}
-              >
-                ✕
+            <div style={{ position: 'relative', display: 'flex', gap: isMobile ? '1rem' : '1.4rem', alignItems: 'center', padding: isMobile ? '1rem' : '1.4rem 1.6rem' }}>
+              <button type="button" className="cf-hero-poster" onClick={() => setShowMovieDetails(true)} onMouseEnter={() => prefetchMovie(selectedMovie.tmdb_id)}
+                aria-label={`${selectedMovie.title} details`}
+                style={{ flexShrink: 0, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: '10px' }}>
+                {selectedMovie.poster_url
+                  ? <img src={selectedMovie.poster_url} alt="" style={{ width: isMobile ? '78px' : '100px', aspectRatio: '2 / 3', objectFit: 'cover', borderRadius: '10px', display: 'block', boxShadow: '0 10px 26px rgba(0,0,0,0.6)' }} />
+                  : <div style={{ width: isMobile ? '78px' : '100px', aspectRatio: '2 / 3', borderRadius: '10px', backgroundColor: '#222' }} />}
               </button>
 
-              {selectedMovie.poster_url && (
-                <img
-                  src={selectedMovie.poster_url}
-                  alt={selectedMovie.title}
-                  onClick={() => setShowMovieDetails(true)}
-                  onMouseEnter={() => prefetchMovie(selectedMovie.tmdb_id)}
-                  style={{ width: isMobile ? '60px' : '72px', borderRadius: '10px', boxShadow: '0 6px 18px rgba(0,0,0,0.5)', flexShrink: 0, cursor: 'pointer' }}
-                />
-              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h3 style={{ margin: 0, fontSize: isMobile ? '1.15rem' : '1.45rem', fontWeight: 800, lineHeight: 1.2, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>
+                  {selectedMovie.title}
+                  {selectedMovie.year && <span style={{ color: '#aaa', fontWeight: 500 }}> ({selectedMovie.year})</span>}
+                </h3>
 
-              <div style={{ flex: 1, minWidth: 0, paddingRight: '1.5rem', overflowWrap: 'anywhere' }}>
-                <h3 style={{ margin: '0 0 0.3rem 0', fontSize: isMobile ? '1.1rem' : '1.3rem', fontWeight: 800 }}>{selectedMovie.title} <span style={{ color: '#888', fontWeight: 500 }}>({selectedMovie.year})</span></h3>
-                <p style={{ color: '#999', margin: 0, fontSize: '0.85rem' }}>💬 {watchedMovies.length} {watchedMovies.length === 1 ? 'log' : 'logs'} from the community</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.6rem' }}>
+                  <span className="cf-chip">{loading ? '…' : watchedMovies.length} {watchedMovies.length === 1 ? 'log' : 'logs'}</span>
+                  {avgRating && <span className="cf-chip"><span style={{ color: '#ff4d61' }}>★</span> {avgRating} avg</span>}
+                  <span className="cf-chip">{commentCount} {commentCount === 1 ? 'comment' : 'comments'}</span>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: isMobile ? '0.75rem' : '0.95rem' }}>
+                  <button type="button" className="cf-btn cf-btn-primary" onClick={() => setShowMovieDetails(true)}>Details</button>
+                  <button type="button" className="cf-btn" onClick={backToSearch}>Change movie</button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '3rem' }}>
-            <p style={{ fontSize: '2rem', margin: '0 0 0.5rem 0', animation: 'pulse 1.4s ease-in-out infinite' }}>🎬</p>
-            <p style={{ color: '#888', margin: 0, fontSize: '0.9rem' }}>Loading community logs...</p>
-            <style>{`@keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {Array.from({ length: 3 }, (_, i) => (
+              <div key={i} style={{ height: '150px', borderRadius: '18px', backgroundColor: 'rgba(255,255,255,0.05)', animation: 'cfPulse 1.3s ease-in-out infinite' }} />
+            ))}
           </div>
         )}
 
-        <div ref={commentsRef}>
+        <div ref={commentsRef} style={{ scrollMarginTop: 'calc(var(--nav-h) + 1rem)' }}>
 
         {/* Log this movie yourself, via a comment — there's no comment without a log:
             posting here creates your own (unrated) log and attaches the comment to it.
             Hidden once you already have a log for this movie; add more comments there instead. */}
         {!loading && selectedMovie && !hasOwnLog && (
           <div style={{
-            backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-            borderRadius: '16px', padding: isMobile ? '1rem' : '1.1rem 1.5rem', marginBottom: '1.25rem'
+            backgroundColor: 'rgba(179,31,47,0.07)', border: '1px solid rgba(220,60,79,0.25)',
+            borderRadius: '18px', padding: isMobile ? '1rem' : '1.15rem 1.4rem', marginBottom: '1.25rem'
           }}>
-            <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1rem', fontWeight: 800 }}>💬 Log this movie</h3>
-            <p style={{ color: '#888', fontSize: '0.8rem', margin: '0 0 1rem 0' }}>Add a comment to log it — you can rate it later from your profile.</p>
-
-            {selectedMovieGif && (
-              <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
-                <img src={selectedMovieGif} alt="Selected GIF" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', display: 'block' }} />
-                <button
-                  type="button"
-                  onClick={() => setSelectedMovieGif(null)}
-                  aria-label="Remove GIF"
-                  style={{
-                    position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px',
-                    borderRadius: '50%', backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.2)',
-                    color: 'white', fontSize: '0.75rem', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            <form onSubmit={handleAddMovieComment} style={{ position: 'relative', display: 'flex', gap: '0.5rem', marginBottom: '1.1rem' }}>
-              <input
-                type="text"
-                value={newMovieComment}
-                onChange={(e) => setNewMovieComment(e.target.value)}
-                onFocus={() => setMovieCommentFocused(true)}
-                onBlur={() => setMovieCommentFocused(false)}
-                placeholder="Add a comment..."
-                maxLength={500}
-                style={{
-                  flex: 1, minWidth: 0, padding: '0.6rem 0.9rem', borderRadius: '999px',
-                  border: '1px solid ' + (movieCommentFocused ? '#b31f2f' : 'rgba(255,255,255,0.1)'),
-                  backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem',
-                  boxShadow: movieCommentFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
-                  transition: 'border-color 0.15s, box-shadow 0.15s'
-                }}
-              />
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowMovieGiphy(v => !v)}
-                  onMouseEnter={() => setMovieGifButtonHover(true)}
-                  onMouseLeave={() => setMovieGifButtonHover(false)}
-                  aria-label="Add a GIF"
-                  style={{
-                    padding: '0.6rem 0.9rem',
-                    backgroundColor: showMovieGiphy || movieGifButtonHover ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
-                    color: 'white',
-                    border: '1px solid ' + (showMovieGiphy ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
-                    borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0,
-                    transition: 'background-color 0.15s, border-color 0.15s'
-                  }}
-                >
-                  GIF
-                </button>
-                {showMovieGiphy && (
-                  <GiphyPicker
-                    onSelect={(url) => { setSelectedMovieGif(url); setShowMovieGiphy(false) }}
-                    onClose={() => setShowMovieGiphy(false)}
-                    // Anchored to the form, so never wider than it.
-                    style={{ width: 'min(320px, 100%)' }}
-                  />
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={(!newMovieComment.trim() && !selectedMovieGif) || loggingComment}
-                style={{
-                  padding: isMobile ? '0.6rem 1rem' : '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', flexShrink: 0,
-                  borderRadius: '999px', cursor: (newMovieComment.trim() || selectedMovieGif) && !loggingComment ? 'pointer' : 'default', fontWeight: '700', fontSize: '0.85rem',
-                  opacity: (newMovieComment.trim() || selectedMovieGif) && !loggingComment ? 1 : 0.45, transition: 'opacity 0.15s'
-                }}
-              >
-                {loggingComment ? 'Posting…' : 'Post'}
-              </button>
-            </form>
+            <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '0.98rem', fontWeight: 800 }}>Join the conversation</h3>
+            <p style={{ color: '#999', fontSize: '0.8rem', margin: '0 0 0.9rem 0' }}>Commenting logs the movie for you — you can rate it later from your profile.</p>
+            <Composer
+              value={newMovieComment}
+              onChange={setNewMovieComment}
+              onSubmit={handleAddMovieComment}
+              gif={selectedMovieGif}
+              onRemoveGif={() => setSelectedMovieGif(null)}
+              giphyOpen={showMovieGiphy}
+              onToggleGiphy={() => setShowMovieGiphy(v => !v)}
+              onPickGif={(url) => { setSelectedMovieGif(url); setShowMovieGiphy(false) }}
+              onCloseGiphy={() => setShowMovieGiphy(false)}
+              busy={loggingComment}
+              placeholder="What did you think?"
+            />
           </div>
         )}
 
-        {/* Watched Movies with Comments */}
         {!loading && selectedMovie && watchedMovies.length === 0 && (
-          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🍿</p>
-            <p style={{ color: '#999', margin: 0 }}>Nobody has logged this movie yet. Be the first!</p>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2.25rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p style={{ fontSize: '2.3rem', margin: '0 0 0.6rem 0' }}>🍿</p>
+            <p style={{ color: 'white', fontWeight: 700, margin: '0 0 0.25rem 0' }}>No one has logged this yet</p>
+            <p style={{ color: '#999', margin: 0, fontSize: '0.88rem' }}>Be the first to say what you thought.</p>
           </div>
         )}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {watchedMovies.map(watched => {
-            const isOwn = watched.user_id?._id === currentUserId
-            return (
-              <div
-                key={watched._id}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                  borderRadius: '16px', transition: 'border-color 0.2s, transform 0.2s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.16)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)' }}
-              >
+        {!loading && watchedMovies.length > 0 && (
+          <p style={{ color: '#777', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.75rem 0.15rem' }}>
+            From the community
+          </p>
+        )}
 
-                {/* User Header */}
-                <div style={{ padding: isMobile ? '0.85rem 1rem' : '1rem 1.5rem', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <Avatar
-                    user={watched.user_id}
-                    size={isMobile ? 38 : 44}
-                    onClick={!isOwn ? () => goToUser(watched.user_id?._id) : undefined}
-                  />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? '0.9rem' : '1.1rem' }}>
+          {!loading && watchedMovies.map(watched => {
+            const isOwn = watched.user_id?._id === currentUserId
+            const author = watched.user_id?.username || watched.user_id?.email
+            return (
+              <article key={watched._id} className="cf-log" style={{
+                backgroundColor: 'rgba(255,255,255,0.035)', borderRadius: '18px',
+                border: '1px solid ' + (isOwn ? 'rgba(220,60,79,0.3)' : 'rgba(255,255,255,0.08)'),
+                animation: 'cfFadeIn 0.3s ease'
+              }}>
+                {/* Who logged it, their rating, when */}
+                <div style={{ padding: isMobile ? '0.9rem 1rem 0.75rem' : '1.1rem 1.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Avatar user={watched.user_id} size={isMobile ? 40 : 44} onClick={!isOwn ? () => goToUser(watched.user_id?._id) : undefined} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p
-                      style={{ margin: 0, fontWeight: '700', fontSize: '0.95rem', cursor: isOwn ? 'default' : 'pointer', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem', overflowWrap: 'anywhere' }}
-                      onClick={() => !isOwn && goToUser(watched.user_id?._id)}
-                    >
-                      {watched.user_id?.username || watched.user_id?.email}
-                      {isOwn && (
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.15)', border: '1px solid rgba(179,31,47,0.35)', borderRadius: '999px', padding: '0.1rem 0.5rem', letterSpacing: '0.03em' }}>YOU</span>
-                      )}
+                    <p style={{ margin: 0, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      <span
+                        className={isOwn ? undefined : 'cf-name'}
+                        onClick={() => !isOwn && goToUser(watched.user_id?._id)}
+                        style={{ fontWeight: 800, fontSize: '0.95rem', cursor: isOwn ? 'default' : 'pointer', overflowWrap: 'anywhere' }}
+                      >{author}</span>
+                      {isOwn && <span style={{ fontSize: '0.6rem', fontWeight: 800, color: '#ff6b7d', backgroundColor: 'rgba(179,31,47,0.16)', border: '1px solid rgba(220,60,79,0.35)', borderRadius: '999px', padding: '0.1rem 0.45rem', letterSpacing: '0.05em' }}>YOU</span>}
                     </p>
-                    <p style={{ color: '#888', fontSize: '0.8rem', margin: '0.2rem 0 0 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-                      {watched.rating ? <StarRating rating={watched.rating} /> : <span style={{ color: '#666', fontStyle: 'italic' }}>Not rated</span>} <span style={{ color: '#555' }}>· {formatDate(watched.watchedAt)}</span>
+                    <p style={{ color: '#888', fontSize: '0.78rem', margin: '0.2rem 0 0 0', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem' }}>
+                      {watched.rating ? <StarRating rating={watched.rating} /> : <span style={{ color: '#666', fontStyle: 'italic' }}>Not rated</span>}
+                      <span style={{ color: '#444' }}>•</span>
+                      <span title={formatDate(watched.watchedAt)}>watched {timeAgo(watched.watchedAt)}</span>
                     </p>
                   </div>
                 </div>
 
-                {/* Comments */}
-                <div style={{ padding: isMobile ? '0.9rem 1rem' : '1.1rem 1.5rem' }}>
+                <div style={{ padding: isMobile ? '0 1rem 1rem' : '0 1.4rem 1.2rem' }}>
                   {watched.comments.length > 0 ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.1rem' }}>
-                      {watched.comments.map(comment => (
-                        <div key={comment._id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start' }}>
-                          <Avatar
-                            user={comment.commenter_id}
-                            size={30}
-                            onClick={comment.commenter_id?._id !== currentUserId ? () => goToUser(comment.commenter_id?._id) : undefined}
-                          />
-                          <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: '12px', padding: '0.65rem 0.85rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: '0.5rem', rowGap: '0.1rem', marginBottom: '0.2rem' }}>
-                              <span
-                                style={{ fontWeight: '700', fontSize: '0.85rem', color: 'white', cursor: comment.commenter_id?._id !== currentUserId ? 'pointer' : 'default' }}
-                                onClick={() => comment.commenter_id?._id !== currentUserId && goToUser(comment.commenter_id?._id)}
-                              >
-                                {comment.commenter_id?.username || comment.commenter_id?.email}
-                              </span>
-                              <span style={{ color: '#555', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{formatDate(comment.createdAt)}</span>
-                              {comment.commenter_id?._id === currentUserId && (
-                                <button
-                                  onClick={() => handleDeleteComment(watched._id, comment._id)}
-                                  aria-label="Delete comment"
-                                  title="Delete comment"
-                                  style={{
-                                    marginLeft: 'auto', background: 'none', border: 'none', color: '#666',
-                                    fontSize: '0.85rem', cursor: 'pointer', padding: '0.15rem 0.3rem', lineHeight: 1,
-                                    transition: 'color 0.15s'
-                                  }}
-                                  onMouseEnter={e => { e.currentTarget.style.color = '#dc3c4f' }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#666' }}
-                                >
-                                  🗑️
-                                </button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', margin: '0.15rem 0 1rem', paddingLeft: isMobile ? '0.25rem' : '0.4rem', borderLeft: '2px solid rgba(255,255,255,0.06)' }}>
+                      {watched.comments.map(comment => {
+                        const mine = comment.commenter_id?._id === currentUserId
+                        return (
+                          <div key={comment._id} className="cf-comment" style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', paddingLeft: '0.6rem' }}>
+                            <Avatar user={comment.commenter_id} size={30} onClick={!mine ? () => goToUser(comment.commenter_id?._id) : undefined} />
+                            <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+                              <div style={{ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: '0.5rem' }}>
+                                <span className={mine ? undefined : 'cf-name'} onClick={() => !mine && goToUser(comment.commenter_id?._id)}
+                                  style={{ fontWeight: 700, fontSize: '0.84rem', cursor: mine ? 'default' : 'pointer' }}>
+                                  {comment.commenter_id?.username || comment.commenter_id?.email}
+                                </span>
+                                <span title={formatDate(comment.createdAt)} style={{ color: '#666', fontSize: '0.72rem', whiteSpace: 'nowrap' }}>{timeAgo(comment.createdAt)}</span>
+                                {mine && (
+                                  <button type="button" className="cf-delete" onClick={() => handleDeleteComment(watched._id, comment._id)} aria-label="Delete comment" title="Delete comment"
+                                    style={{ marginLeft: 'auto', alignSelf: 'center', background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '0.2rem', display: 'flex', borderRadius: '6px' }}>
+                                    {ICONS.trash}
+                                  </button>
+                                )}
+                              </div>
+                              {comment.comment && <p style={{ color: '#ddd', margin: '0.15rem 0 0 0', fontSize: '0.9rem', lineHeight: 1.45 }}>{comment.comment}</p>}
+                              {comment.gif_url && (
+                                <img src={comment.gif_url} alt="GIF" loading="lazy" style={{ maxHeight: '160px', maxWidth: '100%', borderRadius: '10px', display: 'block', marginTop: '0.45rem' }} />
                               )}
                             </div>
-                            {comment.comment && (
-                              <p style={{ color: '#ddd', margin: 0, fontSize: '0.9rem', lineHeight: 1.4 }}>{comment.comment}</p>
-                            )}
-                            {comment.gif_url && (
-                              <img
-                                src={comment.gif_url}
-                                alt="GIF"
-                                style={{ maxHeight: '150px', maxWidth: '100%', borderRadius: '8px', display: 'block', marginTop: comment.comment ? '0.5rem' : 0 }}
-                              />
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : (
-                    <p style={{ color: '#555', fontSize: '0.85rem', marginBottom: '1.1rem' }}>No comments yet — say something!</p>
+                    <p style={{ color: '#666', fontSize: '0.84rem', margin: '0.1rem 0 0.9rem' }}>
+                      {isOwn ? 'No comments on your log yet.' : `No comments yet — tell ${author} what you think.`}
+                    </p>
                   )}
 
-                  {/* Comment Input */}
                   {!isOwn && (
-                    <>
-                      {selectedGifs[watched._id] && (
-                        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.75rem' }}>
-                          <img src={selectedGifs[watched._id]} alt="Selected GIF" style={{ maxHeight: '120px', maxWidth: '100%', borderRadius: '10px', display: 'block' }} />
-                          <button
-                            type="button"
-                            onClick={() => setSelectedGifs(prev => ({ ...prev, [watched._id]: null }))}
-                            aria-label="Remove GIF"
-                            style={{
-                              position: 'absolute', top: '-8px', right: '-8px', width: '22px', height: '22px',
-                              borderRadius: '50%', backgroundColor: '#1a1a1a', border: '1px solid rgba(255,255,255,0.2)',
-                              color: 'white', fontSize: '0.75rem', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-                      <div style={{ position: 'relative', display: 'flex', gap: '0.5rem' }}>
-                        <input
-                          type="text"
-                          value={newComments[watched._id] || ''}
-                          onChange={(e) => setNewComments(prev => ({ ...prev, [watched._id]: e.target.value }))}
-                          onKeyDown={(e) => e.key === 'Enter' && handleAddComment(watched._id)}
-                          placeholder="Add a comment..."
-                          maxLength={500}
-                          style={{ flex: 1, minWidth: 0, padding: '0.6rem 0.9rem', borderRadius: '999px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)', color: 'white', outline: 'none', fontSize: '0.9rem' }}
-                          onFocus={e => { e.target.style.borderColor = '#b31f2f'; e.target.style.boxShadow = '0 0 0 3px rgba(179,31,47,0.18)' }}
-                          onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.1)'; e.target.style.boxShadow = 'none' }}
-                        />
-
-                        <div>
-                          <button
-                            type="button"
-                            onClick={() => setShowGiphyFor(showGiphyFor === watched._id ? null : watched._id)}
-                            aria-label="Add a GIF"
-                            style={{
-                              padding: '0.6rem 0.9rem',
-                              backgroundColor: showGiphyFor === watched._id ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)',
-                              color: 'white',
-                              border: '1px solid ' + (showGiphyFor === watched._id ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.15)'),
-                              borderRadius: '999px', cursor: 'pointer', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0,
-                              transition: 'background-color 0.15s, border-color 0.15s'
-                            }}
-                          >
-                            GIF
-                          </button>
-                          {showGiphyFor === watched._id && (
-                            <GiphyPicker
-                              onSelect={(url) => { setSelectedGifs(prev => ({ ...prev, [watched._id]: url })); setShowGiphyFor(null) }}
-                              onClose={() => setShowGiphyFor(null)}
-                              // Anchored to the input row, so never wider than it.
-                              style={{ width: 'min(320px, 100%)' }}
-                            />
-                          )}
-                        </div>
-
-                        <button
-                          onClick={() => handleAddComment(watched._id)}
-                          disabled={!newComments[watched._id]?.trim() && !selectedGifs[watched._id]}
-                          style={{
-                            padding: isMobile ? '0.6rem 1rem' : '0.6rem 1.25rem', backgroundColor: '#b31f2f', color: 'white', border: 'none', flexShrink: 0,
-                            borderRadius: '999px', cursor: (newComments[watched._id]?.trim() || selectedGifs[watched._id]) ? 'pointer' : 'default',
-                            fontWeight: '700', fontSize: '0.85rem',
-                            opacity: (newComments[watched._id]?.trim() || selectedGifs[watched._id]) ? 1 : 0.45,
-                            transition: 'opacity 0.15s, background-color 0.15s'
-                          }}
-                        >
-                          Post
-                        </button>
-                      </div>
-                    </>
+                    <Composer
+                      value={newComments[watched._id] || ''}
+                      onChange={(v) => setNewComments(prev => ({ ...prev, [watched._id]: v }))}
+                      onSubmit={(e) => { e.preventDefault(); handleAddComment(watched._id) }}
+                      gif={selectedGifs[watched._id]}
+                      onRemoveGif={() => setSelectedGifs(prev => ({ ...prev, [watched._id]: null }))}
+                      giphyOpen={showGiphyFor === watched._id}
+                      onToggleGiphy={() => setShowGiphyFor(showGiphyFor === watched._id ? null : watched._id)}
+                      onPickGif={(url) => { setSelectedGifs(prev => ({ ...prev, [watched._id]: url })); setShowGiphyFor(null) }}
+                      onCloseGiphy={() => setShowGiphyFor(null)}
+                      placeholder={`Reply to ${author}...`}
+                    />
                   )}
                 </div>
-              </div>
+              </article>
             )
           })}
         </div>

@@ -1,0 +1,203 @@
+<!doctype html>
+<!--
+  Device preview — DEV ONLY.
+  Open https://localhost:5173/preview.html (e.g. in VS Code: Ctrl+Shift+P →
+  "Simple Browser: Show") to see the app inside a phone/tablet frame next to
+  your code. The app runs in an iframe of the real device size, so the
+  responsive layout (useIsMobile, media queries) behaves as on that device,
+  and Vite's live reload updates it on every save.
+  Not part of the production build: Vite only builds index.html.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CineLog · Device preview</title>
+  <style>
+    :root { --bg: #0d0d0f; --panel: #17171a; --line: rgba(255,255,255,0.1); --text: #e8e8ea; --muted: #8b8b92; --accent: #dc3c4f; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; }
+    body {
+      background: radial-gradient(ellipse at 50% 0%, #1b1b20 0%, var(--bg) 60%);
+      color: var(--text); font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ---------- toolbar ---------- */
+    .bar {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      padding: 8px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
+    }
+    .bar select, .bar input, .bar button {
+      height: 30px; border-radius: 8px; border: 1px solid var(--line);
+      background: #222227; color: var(--text); font: inherit; padding: 0 9px;
+    }
+    .bar button { cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+    .bar button:hover, .bar select:hover { border-color: rgba(255,255,255,0.25); }
+    .bar input { flex: 1 1 120px; min-width: 90px; font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+    .bar .size { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; padding: 0 2px; }
+
+    /* ---------- stage ---------- */
+    .stage { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .scaler { transform-origin: center center; transition: transform 0.25s ease; }
+
+    .device {
+      position: relative; padding: var(--bezel); border-radius: var(--radius);
+      background: linear-gradient(145deg, #2a2a2e, #111113);
+      box-shadow: 0 0 0 2px #3a3a40, 0 30px 80px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+    .screen {
+      position: relative; overflow: hidden; background: #000;
+      border-radius: calc(var(--radius) - var(--bezel));
+      width: var(--w); height: var(--h);
+    }
+    .screen iframe { display: block; width: 100%; height: 100%; border: 0; background: #0a0a0a; }
+
+    /* notch / punch-hole / home-bar decorations (drawn over the screen) */
+    .notch {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 160px; height: 28px; background: #000; border-radius: 0 0 18px 18px; z-index: 2; pointer-events: none;
+    }
+    .island { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 110px; height: 32px; background: #000; border-radius: 20px; z-index: 2; pointer-events: none; }
+    .punch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 12px; height: 12px; background: #000; border-radius: 50%; z-index: 2; pointer-events: none; }
+    .homebar { position: absolute; bottom: 7px; left: 50%; transform: translateX(-50%); width: 120px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.55); z-index: 2; pointer-events: none; }
+    .landscape .notch, .landscape .island, .landscape .punch { display: none; }
+    .landscape .homebar { width: 150px; }
+    .hide-chrome .notch, .hide-chrome .island, .hide-chrome .punch, .hide-chrome .homebar { display: none; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <select id="device" title="Device"></select>
+    <button id="rotate" title="Rotate (R)">⟳ Rotate</button>
+    <select id="zoom" title="Zoom">
+      <option value="fit">Fit</option>
+      <option value="1">100%</option>
+      <option value="0.75">75%</option>
+      <option value="0.5">50%</option>
+    </select>
+    <span class="size" id="size"></span>
+    <input id="path" spellcheck="false" title="Path inside the app — press Enter to go" />
+    <button id="back" title="Back">←</button>
+    <button id="reload" title="Reload the app">↻</button>
+    <button id="chrome" title="Show/hide notch & home bar">▢</button>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="scaler" id="scaler">
+      <div class="device" id="device-frame">
+        <div class="screen">
+          <iframe id="app" title="App preview"></iframe>
+        </div>
+        <div id="deco"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // CSS-pixel viewport sizes of real devices (what the app's media queries see).
+    const DEVICES = {
+      'iPhone SE':        { w: 375, h: 667, radius: 34, bezel: 12, deco: 'none' },
+      'iPhone 14':        { w: 390, h: 844, radius: 52, bezel: 12, deco: 'notch' },
+      'iPhone 15 Pro Max':{ w: 430, h: 932, radius: 56, bezel: 12, deco: 'island' },
+      'Pixel 7':          { w: 412, h: 915, radius: 40, bezel: 10, deco: 'punch' },
+      'Galaxy S8+':       { w: 360, h: 740, radius: 36, bezel: 10, deco: 'punch' },
+      'iPad Mini':        { w: 768, h: 1024, radius: 30, bezel: 18, deco: 'none' },
+    }
+
+    const $ = (id) => document.getElementById(id)
+    const store = {
+      get(k, d) { try { const v = localStorage.getItem('devicePreview.' + k); return v === null ? d : JSON.parse(v) } catch { return d } },
+      set(k, v) { try { localStorage.setItem('devicePreview.' + k, JSON.stringify(v)) } catch {} },
+    }
+
+    const state = {
+      device: store.get('device', 'iPhone 14'),
+      landscape: store.get('landscape', false),
+      zoom: store.get('zoom', 'fit'),
+      chrome: store.get('chrome', true),
+    }
+    if (!DEVICES[state.device]) state.device = 'iPhone 14'
+
+    // device list
+    for (const name of Object.keys(DEVICES)) {
+      const o = document.createElement('option'); o.value = o.textContent = name; $('device').append(o)
+    }
+    $('device').value = state.device
+    $('zoom').value = state.zoom
+
+    function apply() {
+      const d = DEVICES[state.device]
+      const w = state.landscape ? d.h : d.w
+      const h = state.landscape ? d.w : d.h
+      const frame = $('device-frame')
+      frame.style.setProperty('--w', w + 'px')
+      frame.style.setProperty('--h', h + 'px')
+      frame.style.setProperty('--radius', d.radius + 'px')
+      frame.style.setProperty('--bezel', d.bezel + 'px')
+      frame.classList.toggle('landscape', state.landscape)
+      frame.classList.toggle('hide-chrome', !state.chrome)
+      $('deco').innerHTML =
+        (d.deco === 'notch' ? '<div class="notch"></div>' : d.deco === 'island' ? '<div class="island"></div>' : d.deco === 'punch' ? '<div class="punch"></div>' : '') +
+        (d.deco !== 'none' ? '<div class="homebar"></div>' : '')
+      $('size').textContent = `${w} × ${h}`
+      fit()
+      store.set('device', state.device); store.set('landscape', state.landscape)
+      store.set('zoom', state.zoom); store.set('chrome', state.chrome)
+    }
+
+    // Scale the whole device to fit the panel (or to a fixed zoom).
+    function fit() {
+      const d = DEVICES[state.device]
+      const fw = (state.landscape ? d.h : d.w) + d.bezel * 2
+      const fh = (state.landscape ? d.w : d.h) + d.bezel * 2
+      const stage = $('stage')
+      const sw = stage.clientWidth, sh = stage.clientHeight
+      // The panel can report 0×0 while it's still being laid out (or hidden);
+      // keep the last good scale then — the observers call fit() again.
+      if (state.zoom === 'fit' && (sw < 50 || sh < 50)) return
+      const s = state.zoom === 'fit'
+        ? Math.max(0.2, Math.min(1, (sw - 32) / fw, (sh - 32) / fh))
+        : Number(state.zoom)
+      $('scaler').style.transform = `scale(${s})`
+    }
+
+    // App path: start where we left off, keep the address box in sync.
+    const frameEl = $('app')
+    frameEl.src = store.get('path', '/profile')
+    function currentPath() {
+      try { const l = frameEl.contentWindow.location; return l.pathname + l.search } catch { return null }
+    }
+    setInterval(() => {
+      const p = currentPath()
+      if (p && document.activeElement !== $('path') && $('path').value !== p) {
+        $('path').value = p; store.set('path', p)
+      }
+    }, 400)
+
+    $('path').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return
+      let p = $('path').value.trim() || '/'
+      if (!p.startsWith('/')) p = '/' + p
+      frameEl.contentWindow.location.href = p
+      $('path').blur()
+    })
+    $('device').addEventListener('change', (e) => { state.device = e.target.value; apply() })
+    $('zoom').addEventListener('change', (e) => { state.zoom = e.target.value; apply() })
+    $('rotate').addEventListener('click', () => { state.landscape = !state.landscape; apply() })
+    $('chrome').addEventListener('click', () => { state.chrome = !state.chrome; apply() })
+    $('reload').addEventListener('click', () => frameEl.contentWindow.location.reload())
+    $('back').addEventListener('click', () => frameEl.contentWindow.history.back())
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return
+      if (e.key === 'r' || e.key === 'R') { state.landscape = !state.landscape; apply() }
+    })
+    new ResizeObserver(fit).observe($('stage'))
+    window.addEventListener('resize', fit)
+    window.addEventListener('load', fit)
+
+    apply()
+    setTimeout(fit, 150)
+  </script>
+</body>
+</html>

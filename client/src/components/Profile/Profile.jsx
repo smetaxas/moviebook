@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import api from '../../api/axios'
 import useIsMobile from '../../hooks/useIsMobile'
@@ -16,6 +16,8 @@ import Emoji from '../UI/Emoji'
 import Navbar from '../UI/Navbar'
 import ProfileMenu from '../UI/ProfileMenu'
 import Avatar from '../UI/Avatar'
+import { profileStyles, ProfileHeader, ProfileLists } from './ProfileParts'
+import { TrendingSection, UpcomingSection } from './DiscoverSections'
 import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
 
@@ -90,46 +92,6 @@ const Collapsible = ({ open, children }) => (
   </div>
 )
 
-// size follows the info card's layout (see cardLayout in Profile):
-//  'full'    — wide card, tiles sit in the same row as the name
-//  'medium'  — tiles share their own full-width row under the name
-//  'compact' — phone: same row of three, smaller type
-const StatCard = ({ count, label, shortLabel, icon, isOpen, onClick, size = 'full' }) => {
-  const compact = size === 'compact'
-  const full = size === 'full'
-  return (
-    <div
-      onClick={onClick}
-      role="button"
-      aria-expanded={isOpen}
-      style={{
-        textAlign: 'center', cursor: 'pointer', position: 'relative',
-        backgroundColor: isOpen ? 'rgba(179,31,47,0.14)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${isOpen ? 'rgba(179,31,47,0.45)' : 'rgba(255,255,255,0.08)'}`,
-        borderRadius: compact ? '12px' : '14px',
-        padding: compact ? '0.65rem 0.3rem 0.5rem' : full ? '0.9rem 1.5rem' : '0.8rem 0.75rem',
-        transition: 'background-color 0.2s, border-color 0.2s, transform 0.2s',
-        // Outside the wide layout the three tiles share the row equally
-        // (instead of a fixed minWidth), so they can never overflow it.
-        ...(full ? { minWidth: '112px' } : { flex: '1 1 0', minWidth: 0 })
-      }}
-      onMouseEnter={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.07)' }}
-      onMouseLeave={e => { if (!isOpen) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.03)' }}
-    >
-      {!compact && <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: isOpen ? 0.9 : 0.45 }}>{icon}</span>}
-      <p style={{ fontSize: compact ? '1.35rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: isOpen ? '#dc3c4f' : 'white' }}>{count}</p>
-      <p style={{
-        color: '#999', margin: compact ? '0.3rem 0 0 0' : '0.4rem 0 0 0', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase',
-        fontSize: compact ? '0.62rem' : '0.72rem', whiteSpace: 'nowrap'
-      }}>{compact ? (shortLabel || label) : label}</p>
-      {/* The tile is a show/hide toggle for its list — say so at every size. */}
-      <p style={{ color: isOpen ? '#dc3c4f' : '#555', margin: compact ? '0.2rem 0 0 0' : '0.35rem 0 0 0', fontSize: compact ? '0.58rem' : '0.68rem', fontWeight: 600 }}>
-        {isOpen ? '▲ Hide' : '▼ Show'}
-      </p>
-    </div>
-  )
-}
-
 function Profile() {
   const [user, setUser] = useState(null)
   const [watchedMovies, setWatchedMovies] = useState([])
@@ -138,8 +100,14 @@ function Profile() {
   const [trendingMovies, setTrendingMovies] = useState([])
   const [upcomingMovies, setUpcomingMovies] = useState([])
   const [genres, setGenres] = useState([])
-  const [selectedGenre, setSelectedGenre] = useState(null)
+  // Several genres can be combined; the results are movies that are ALL of
+  // them (Comedy + Romance = romantic comedies).
+  const [selectedGenres, setSelectedGenres] = useState([])
   const [genreMovies, setGenreMovies] = useState([])
+  const [genreLoading, setGenreLoading] = useState(false)
+  // Tapping genres quickly fires overlapping requests; only the latest one
+  // may update the results.
+  const genreRequestRef = useRef(0)
   const [yearFrom, setYearFrom] = useState('')
   const [yearTo, setYearTo] = useState('')
   const isMobile = useIsMobile()
@@ -153,9 +121,19 @@ function Profile() {
   // Sidebar defaults collapsed on mobile (it'd otherwise cover the whole
   // screen on first load) and open on desktop, matching its own width.
   const [sidebarOpen, setSidebarOpen] = useState(!isMobile)
-  const [watchedOpen, setWatchedOpen] = useState(false)
-  const [watchlistOpen, setWatchlistOpen] = useState(false)
-  const [favoritesOpen, setFavoritesOpen] = useState(false)
+  // Which of your lists is showing under the card (folded away by default);
+  // tapping a stat opens its list, tapping it again folds it back up.
+  const [listOpen, setListOpen] = useState(false)
+  const [listTab, setListTab] = useState('watched')
+  const [sort, setSort] = useState('recent')
+  const toggleList = (key) => {
+    if (listOpen && listTab === key) {
+      setListOpen(false)
+    } else {
+      setListTab(key)
+      setListOpen(true)
+    }
+  }
   const [error, setError] = useState('')
   const [showSearch, setShowSearch] = useState(false)
   // What to pre-fill the search modal with when it's being reopened after
@@ -269,23 +247,46 @@ function Profile() {
     }
   }
 
-  const fetchGenreMovies = async (genre, fromYear = yearFrom, toYear = yearTo) => {
-    if (selectedGenre?.id === genre.id && !fromYear && !toYear) {
-      setSelectedGenre(null)
+  // Clicking a genre adds it to the combination, or removes it if it's
+  // already in it. Works from a ref, not the rendered state: two quick taps
+  // can land before React re-renders, and the second would otherwise start
+  // from the selection before the first tap (undoing it).
+  const selectedGenresRef = useRef([])
+  const applyGenreSelection = (next) => {
+    selectedGenresRef.current = next
+    setSelectedGenres(next)
+    loadGenreMovies(next, yearFrom, yearTo)
+  }
+  const toggleGenre = (genre) => {
+    const current = selectedGenresRef.current
+    applyGenreSelection(current.some(g => g.id === genre.id)
+      ? current.filter(g => g.id !== genre.id)
+      : [...current, genre])
+  }
+  const clearGenres = () => applyGenreSelection([])
+
+  // (Re)loads the movies for a genre combination — also used when only the
+  // year range changes.
+  const loadGenreMovies = async (genreList, fromYear, toYear) => {
+    const requestId = ++genreRequestRef.current
+    if (genreList.length === 0) {
       setGenreMovies([])
+      setGenreLoading(false)
       return
     }
-    setSelectedGenre(genre)
+    setGenreLoading(true)
     try {
-      let url = `/movies/genre/${genre.id}`
+      let url = `/movies/genre/${genreList.map(g => g.id).join(',')}`
       const params = []
       if (fromYear) params.push(`yearFrom=${fromYear}`)
       if (toYear) params.push(`yearTo=${toYear}`)
       if (params.length) url += `?${params.join('&')}`
       const res = await api.get(url)
-      setGenreMovies(res.data)
+      if (requestId === genreRequestRef.current) setGenreMovies(res.data)
     } catch (err) {
       console.error('Failed to load genre movies')
+    } finally {
+      if (requestId === genreRequestRef.current) setGenreLoading(false)
     }
   }
 
@@ -331,12 +332,6 @@ function Profile() {
     } catch (err) {
       console.error('Failed to upload photo', err)
     }
-  }
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    })
   }
 
   if (error) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>{error}</p>
@@ -392,6 +387,7 @@ function Profile() {
   // viewport, so it scrolls away with the page).
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white', overflowX: 'clip' }}>
+      <style>{profileStyles}</style>
       <Navbar
         actions={navActions}
         // On mobile the sidebar is a drawer, and the tiny chevron below is
@@ -483,24 +479,28 @@ function Profile() {
           isOpen={sidebarOpen}
           isMobile={isMobile}
           genres={genres}
-          selectedGenre={selectedGenre}
-          onSelectGenre={(genre) => {
-            fetchGenreMovies(genre)
-            // A mobile drawer should get out of the way once its job (picking
-            // a filter) is done, rather than making you dismiss it separately
-            // to see the results it just filtered.
-            if (isMobile) setSidebarOpen(false)
-          }}
+          selectedGenres={selectedGenres}
+          // The drawer stays open on phones while you pick a combination; its
+          // "Show movies" button closes it.
+          onToggleGenre={toggleGenre}
+          onClearGenres={clearGenres}
           onClose={() => setSidebarOpen(false)}
           yearFrom={yearFrom}
           yearTo={yearTo}
           onYearFromChange={(val) => {
             setYearFrom(val)
-            if (selectedGenre) fetchGenreMovies(selectedGenre, val, yearTo)
+            if (selectedGenres.length) loadGenreMovies(selectedGenres, val, yearTo)
           }}
           onYearToChange={(val) => {
             setYearTo(val)
-            if (selectedGenre) fetchGenreMovies(selectedGenre, yearFrom, val)
+            if (selectedGenres.length) loadGenreMovies(selectedGenres, yearFrom, val)
+          }}
+          // Both ends at once (decade shortcuts, Clear): one state update and
+          // one request, instead of two where the second used a stale year.
+          onYearRangeChange={(from, to) => {
+            setYearFrom(from)
+            setYearTo(to)
+            if (selectedGenres.length) loadGenreMovies(selectedGenres, from, to)
           }}
         />
 
@@ -517,193 +517,124 @@ function Profile() {
             was happening. */}
         <div style={{ flex: 1, minWidth: 0, padding: 'var(--page-pad)', overflowY: 'auto', overflowX: 'hidden' }}>
 
-          {/* Profile Info — three layouts, chosen by the card's own width:
-              wide:   avatar · name · divider · stat tiles, all in one row
-              medium: avatar + name on top, stat tiles in a full-width row below
-              narrow: everything stacked and centred (phones) */}
-          <div ref={infoCardRef} style={{
-            position: 'relative', overflow: 'hidden',
-            background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
-            border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-            padding: cardLayout === 'narrow' ? '1.4rem 0.9rem 0.9rem' : cardLayout === 'medium' ? '1.4rem 1.4rem 1.2rem' : '1.75rem 2.25rem',
-            marginBottom: isMobile ? '1.5rem' : '2rem'
-          }}>
-            <div style={{
-              position: 'absolute', top: '-70px', left: '-70px', width: '220px', height: '220px',
-              background: 'radial-gradient(circle, rgba(179,31,47,0.28) 0%, transparent 70%)', pointerEvents: 'none'
-            }} />
-
-            <div style={{
-              position: 'relative', display: 'flex',
-              flexDirection: cardLayout === 'wide' ? 'row' : 'column',
-              alignItems: cardLayout === 'medium' ? 'stretch' : 'center',
-              gap: cardLayout === 'wide' ? '1.75rem' : '1.1rem'
-            }}>
-              {/* Avatar + name: side by side, except stacked on a phone */}
-              <div style={{
-                display: 'flex', alignItems: 'center', minWidth: 0,
-                flexDirection: cardLayout === 'narrow' ? 'column' : 'row',
-                textAlign: cardLayout === 'narrow' ? 'center' : 'left',
-                gap: cardLayout === 'narrow' ? '0.9rem' : cardLayout === 'medium' ? '1.1rem' : '1.75rem',
-                flex: cardLayout === 'wide' ? 1 : 'none',
-                width: cardLayout === 'narrow' ? '100%' : undefined
-              }}>
-                <div style={{ position: 'relative', flexShrink: 0 }}>
-                  <div style={{ borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
-                    <Avatar user={user} size={cardLayout === 'wide' ? 92 : cardLayout === 'medium' ? 76 : 84} onClick={() => document.getElementById('photoInput').click()} />
-                  </div>
-                  <div
-                    onClick={() => document.getElementById('photoInput').click()}
-                    style={{
-                      position: 'absolute', bottom: '2px', right: '2px', backgroundColor: '#b31f2f',
-                      border: '2px solid #0a0a0a', borderRadius: '50%', width: '26px', height: '26px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                      fontSize: '0.72rem', lineHeight: '1', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
-                      transform: 'scale(1)', transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.backgroundColor = '#dc3c4f'
-                      e.currentTarget.style.transform = 'scale(1.12)'
-                      e.currentTarget.style.boxShadow = '0 4px 10px rgba(179,31,47,0.55)'
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.backgroundColor = '#b31f2f'
-                      e.currentTarget.style.transform = 'scale(1)'
-                      e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)'
-                    }}
-                  >
-                    📷
-                  </div>
-                  <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
+          {/* Profile info — same card as other users' pages, laid out from its
+              own width (see cardLayout); plus the photo upload button. */}
+          <ProfileHeader
+            cardRef={infoCardRef}
+            user={user}
+            layout={cardLayout}
+            avatar={size => (
+              <div style={{ position: 'relative' }}>
+                <Avatar user={user} size={size} onClick={() => document.getElementById('photoInput').click()} />
+                <div
+                  onClick={() => document.getElementById('photoInput').click()}
+                  style={{
+                    position: 'absolute', bottom: '2px', right: '2px', backgroundColor: '#b31f2f',
+                    border: '2px solid #0a0a0a', borderRadius: '50%', width: '26px', height: '26px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    fontSize: '0.72rem', lineHeight: '1', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                    transform: 'scale(1)', transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s'
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.backgroundColor = '#dc3c4f'
+                    e.currentTarget.style.transform = 'scale(1.12)'
+                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(179,31,47,0.55)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.backgroundColor = '#b31f2f'
+                    e.currentTarget.style.transform = 'scale(1)'
+                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)'
+                  }}
+                >
+                  📷
                 </div>
-
-                <div style={{ minWidth: 0, maxWidth: '100%', flex: cardLayout === 'narrow' ? 'none' : 1 }}>
-                  <h2 style={{ margin: '0 0 0.35rem 0', fontSize: cardLayout === 'wide' ? '1.6rem' : '1.4rem', fontWeight: 800, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>{user.username || user.email}</h2>
-                  <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: cardLayout === 'narrow' ? 'center' : 'flex-start', gap: '0.4rem' }}>
-                    <span>📅</span> Member since {formatDate(user.createdAt)}
-                  </p>
-                </div>
+                <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
               </div>
-
-              {cardLayout === 'wide' && (
-                <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
-              )}
-
-              <div style={{
-                display: 'flex', flexShrink: 0,
-                gap: cardLayout === 'wide' ? '1rem' : cardLayout === 'medium' ? '0.75rem' : '0.45rem',
-                width: cardLayout === 'wide' ? undefined : '100%'
-              }}>
-                <StatCard
-                  count={watchedMovies.length}
-                  label="Movies Watched"
-                  shortLabel="Watched"
-                  icon="🎬"
-                  isOpen={watchedOpen}
-                  onClick={() => setWatchedOpen(!watchedOpen)}
-                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
-                />
-                <StatCard
-                  count={watchlist.length}
-                  label="To Watch"
-                  icon="🎯"
-                  isOpen={watchlistOpen}
-                  onClick={() => setWatchlistOpen(!watchlistOpen)}
-                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
-                />
-                <StatCard
-                  count={favorites.length}
-                  label="Favorites"
-                  icon="❤️"
-                  isOpen={favoritesOpen}
-                  onClick={() => setFavoritesOpen(!favoritesOpen)}
-                  size={cardLayout === 'wide' ? 'full' : cardLayout === 'medium' ? 'medium' : 'compact'}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* My Watched Movies */}
-          <Collapsible open={watchedOpen}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎬 My Watched Movies</h3>
-            {watchedMovies.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
-                <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎬</p>
-                <p style={{ color: '#aaa' }}>No watched movies yet!</p>
-              </div>
-            ) : (
-              <MovieGrid movies={watchedMovies} onClick={setSelectedWatchedMovie} isMobile={isMobile} />
             )}
+            watchedMovies={watchedMovies}
+            watchlistCount={watchlist.length}
+            favoritesCount={favorites.length}
+            activeTab={listOpen ? listTab : null}
+            onStatClick={toggleList}
+          />
+
+          {/* Your lists stay folded away until you open one, so Trending and
+              Coming Soon are still right there under the card. */}
+          <Collapsible open={listOpen}>
+            <ProfileLists
+              tab={listTab}
+              titles={{ watched: 'Your watched movies', watchlist: 'Your watchlist', favorites: 'Your favorites' }}
+              sort={sort} onSortChange={setSort}
+              watchedMovies={watchedMovies} watchlist={watchlist} favorites={favorites}
+              isMobile={isMobile}
+              emptyText={{
+                watched: 'No watched movies yet!',
+                watchlist: 'No movies in your watchlist yet!',
+                favorites: 'No favorite movies yet!'
+              }}
+              onOpenWatched={setSelectedWatchedMovie}
+              onOpenListMovie={setSelectedTrendingMovie}
+            />
           </Collapsible>
 
-          {/* Watchlist */}
-          <Collapsible open={watchlistOpen}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎯 Movies to Watch</h3>
-            {watchlist.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
-                <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</p>
-                <p style={{ color: '#aaa' }}>No movies in your watchlist yet!</p>
-              </div>
-            ) : (
-              <MovieGrid
-                movies={watchlist.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
-                onClick={(movie) => setSelectedTrendingMovie(movie)}
-                isMobile={isMobile}
-              />
-            )}
-          </Collapsible>
 
-          {/* Favorites */}
-          <Collapsible open={favoritesOpen}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>❤️ Favorite Movies</h3>
-            {favorites.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '2rem', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '2rem' }}>
-                <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>❤️</p>
-                <p style={{ color: '#aaa' }}>No favorite movies yet!</p>
-              </div>
-            ) : (
-              <MovieGrid
-                movies={favorites.map(m => ({ ...m, tmdb_id: m.movie_id, title: m.movie_title, poster_url: m.movie_poster, year: m.movie_year }))}
-                onClick={(movie) => setSelectedTrendingMovie(movie)}
-                isMobile={isMobile}
-              />
-            )}
-          </Collapsible>
-
-          {/* Genre Movies */}
-          {selectedGenre && (
+          {/* Genre Movies — the combination as removable chips */}
+          {selectedGenres.length > 0 && (
             <>
-              <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>
-                🎭 {selectedGenre.name}
-                {(yearFrom || yearTo) && (
-                  <span style={{ color: '#aaa', fontSize: '0.9rem', fontWeight: 'normal', marginLeft: '0.5rem' }}>
-                    ({yearFrom || '...'} — {yearTo || '...'})
-                  </span>
-                )}
-              </h3>
-              {genreMovies.length === 0 ? (
-                <p style={{ color: '#aaa', marginBottom: '2rem' }}>No movies found.</p>
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 700, marginRight: '0.15rem' }}>🎭</span>
+                  {selectedGenres.map((g, i) => (
+                    <span key={g.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                      {i > 0 && <span style={{ color: '#dc3c4f', fontWeight: 800 }}>+</span>}
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                        padding: '0.3rem 0.35rem 0.3rem 0.75rem', borderRadius: '999px',
+                        backgroundColor: 'rgba(179,31,47,0.16)', border: '1px solid rgba(220,60,79,0.5)',
+                        color: 'white', fontSize: isMobile ? '0.85rem' : '0.95rem', fontWeight: 700
+                      }}>
+                        {g.name}
+                        <button
+                          onClick={() => toggleGenre(g)}
+                          aria-label={`Remove ${g.name}`}
+                          style={{
+                            width: '20px', height: '20px', borderRadius: '50%', padding: 0, border: 'none', cursor: 'pointer',
+                            backgroundColor: 'rgba(255,255,255,0.12)', color: 'white', fontSize: '0.7rem', lineHeight: 1,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                          }}
+                        >✕</button>
+                      </span>
+                    </span>
+                  ))}
+                  {selectedGenres.length > 1 && (
+                    <button
+                      onClick={clearGenres}
+                      style={{ background: 'none', border: 'none', color: '#999', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '0.2rem 0.3rem' }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p style={{ color: '#999', fontSize: '0.82rem', margin: '0.5rem 0 0 0' }}>
+                  {genreLoading ? 'Loading…' : `${genreMovies.length} ${genreMovies.length === 1 ? 'movie' : 'movies'}`}
+                  {(yearFrom || yearTo) && ` · ${yearFrom || '…'} – ${yearTo || 'now'}`}
+                  {selectedGenres.length > 1 && !genreLoading && ' · matching all selected genres'}
+                </p>
+              </div>
+              {genreLoading && genreMovies.length === 0 ? null : genreMovies.length === 0 ? (
+                <p style={{ color: '#aaa', marginBottom: '2rem' }}>
+                  {selectedGenres.length > 1
+                    ? 'No movies are all of these genres — try removing one.'
+                    : 'No movies found.'}
+                </p>
               ) : (
                 <MovieGrid movies={genreMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
               )}
             </>
           )}
 
-          {/* Trending Movies */}
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🔥 Trending This Week</h3>
-          {trendingMovies.length === 0 ? (
-            <p style={{ color: '#aaa' }}>Loading...</p>
-          ) : (
-            <MovieGrid movies={trendingMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
-          )}
-
-          {/* Upcoming Movies */}
-          <h3 style={{ marginBottom: '1rem', fontSize: '1.2rem' }}>🎟️ Coming Soon</h3>
-          {upcomingMovies.length === 0 ? (
-            <p style={{ color: '#aaa' }}>Loading...</p>
-          ) : (
-            <MovieGrid movies={upcomingMovies} onClick={(movie) => setSelectedTrendingMovie(movie)} isMobile={isMobile} />
-          )}
+          <TrendingSection movies={trendingMovies} onOpen={setSelectedTrendingMovie} isMobile={isMobile} />
+          <UpcomingSection movies={upcomingMovies} onOpen={setSelectedTrendingMovie} isMobile={isMobile} />
         </div>
       </div>
 

@@ -1,73 +1,18 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, useLocation, useNavigationType } from 'react-router-dom'
 import api from '../../api/axios'
-import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
 import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
 import LogMovieModal from '../Movies/LogMovieModal'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
-import Emoji from '../UI/Emoji'
+import { profileStyles, ProfileHeader, ProfileLists } from './ProfileParts'
 import Navbar from '../UI/Navbar'
 import BackButton from '../UI/BackButton'
 import Avatar from '../UI/Avatar'
 import UserNotFound from '../UserNotFound'
 import useIsMobile from '../../hooks/useIsMobile'
 
-const MovieGrid = ({ movies, onClick }) => (
-  <div style={{
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))',
-    gap: '1rem', marginBottom: '2rem',
-    animation: 'fadeIn 0.3s ease'
-  }}>
-    <style>{`
-      @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-    `}</style>
-    {movies.map((movie, i) => (
-      <div
-        key={movie._id || i}
-        onClick={() => onClick(movie)}
-        style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.movie_id || movie.tmdb_id) }}
-        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-      >
-        {movie.movie_poster ? (
-          <img src={movie.movie_poster} alt={movie.movie_title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
-        ) : (
-          <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#aaa' }}>No Poster</span>
-          </div>
-        )}
-        <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.movie_title}</p>
-        <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>
-          {movie.rating ? `⭐ ${movie.rating}/5` : (movie.movie_year || 'Not rated')}
-        </p>
-      </div>
-    ))}
-  </div>
-)
-
-// compact: the mobile header fits all three tiles in one row, so they drop
-// the fixed min-width and the corner icon (which would overlap the number).
-const StatTile = ({ count, label, icon, compact = false }) => (
-  <div style={{
-    textAlign: 'center', position: 'relative',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: '14px', padding: compact ? '0.75rem 0.35rem' : '0.9rem 1.5rem',
-    minWidth: compact ? 0 : '112px'
-  }}>
-    {!compact && (
-      <span style={{ position: 'absolute', top: '0.6rem', right: '0.75rem', fontSize: '0.85rem', opacity: 0.45 }}><Emoji>{icon}</Emoji></span>
-    )}
-    <p style={{ fontSize: compact ? '1.45rem' : '1.9rem', fontWeight: 800, margin: 0, lineHeight: 1, color: 'white' }}>{count}</p>
-    <p style={{ color: '#999', margin: '0.4rem 0 0 0', fontSize: compact ? '0.62rem' : '0.72rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>{label}</p>
-  </div>
-)
 
 function UserProfile() {
   const [user, setUser] = useState(null)
@@ -78,6 +23,9 @@ function UserProfile() {
   const [selectedWatchlistMovie, setSelectedWatchlistMovie] = useState(null)
   const [movieToLog, setMovieToLog] = useState(null)
   const [error, setError] = useState('')
+  // Which list is showing, and how "Watched" is sorted. Reset per profile.
+  const [tab, setTab] = useState('watched')
+  const [sort, setSort] = useState('recent')
   const { userId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -94,6 +42,20 @@ function UserProfile() {
       // Nothing to go back to (profile opened directly, e.g. in a new tab).
       navigate('/profile')
     }
+  }
+
+  // Another user's page reuses this component — start them clean (reset
+  // during render when the id changes, React's pattern for this, so the
+  // previous person's data never flashes up).
+  const [shownUserId, setShownUserId] = useState(userId)
+  if (shownUserId !== userId) {
+    setShownUserId(userId)
+    setUser(null)
+    setWatchedMovies([])
+    setWatchlist([])
+    setFavorites([])
+    setTab('watched')
+    setSort('recent')
   }
 
   useEffect(() => {
@@ -171,115 +133,46 @@ function UserProfile() {
     }
   }
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'long', year: 'numeric'
-    })
-  }
+
+  const name = user?.username || 'This user'
 
   if (error) return <UserNotFound onGoBack={goBack} />
-  if (!user) return <p style={{ color: 'white', textAlign: 'center', marginTop: '2rem' }}>Loading...</p>
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#0a0a0a', color: 'white' }}>
+      <style>{profileStyles}</style>
       <Navbar>
         <BackButton onClick={goBack}>Back</BackButton>
       </Navbar>
 
-      <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>
+      <div style={{ padding: 'var(--page-pad)', maxWidth: '1100px', margin: '0 auto' }}>
 
-        {/* Profile Info */}
-        <div style={{
-          position: 'relative', overflow: 'hidden',
-          background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
-          border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-          padding: isMobile ? '1.5rem 1rem 1rem' : '1.75rem 2.25rem', marginBottom: isMobile ? '1.5rem' : '2rem',
-          boxShadow: '0 8px 28px rgba(0,0,0,0.35)'
-        }}>
-          <div style={{
-            position: 'absolute', top: '-70px', left: '-70px', width: '220px', height: '220px',
-            background: 'radial-gradient(circle, rgba(179,31,47,0.28) 0%, transparent 70%)', pointerEvents: 'none'
-          }} />
+        <ProfileHeader
+          user={user}
+          layout={isMobile ? 'narrow' : 'wide'}
+          avatar={size => <Avatar user={user} size={size} expandOnClick />}
+          watchedMovies={watchedMovies}
+          watchlistCount={watchlist.length}
+          favoritesCount={favorites.length}
+          activeTab={tab}
+          onStatClick={setTab}
+        />
 
-          <div style={{
-            position: 'relative', display: 'flex',
-            flexDirection: isMobile ? 'column' : 'row',
-            alignItems: 'center', textAlign: isMobile ? 'center' : 'left',
-            gap: isMobile ? '1rem' : '1.75rem'
-          }}>
-            <div style={{ flexShrink: 0, borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.4)' }}>
-              <Avatar user={user} size={isMobile ? 84 : 92} expandOnClick />
-            </div>
-
-            <div style={{ flex: isMobile ? 'none' : 1, minWidth: 0, maxWidth: '100%' }}>
-              <h2 style={{ margin: '0 0 0.35rem 0', fontSize: isMobile ? '1.4rem' : '1.6rem', fontWeight: 800, letterSpacing: '-0.01em', overflowWrap: 'anywhere' }}>{user.username || user.email}</h2>
-              <p style={{ color: '#999', margin: 0, fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'center' : 'flex-start', gap: '0.4rem' }}>
-                <Emoji>📅</Emoji> Member since {formatDate(user.createdAt)}
-              </p>
-            </div>
-
-            {!isMobile && (
-              <div style={{ width: '1px', height: '56px', background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.15), transparent)', flexShrink: 0 }} />
-            )}
-
-            <div style={isMobile
-              ? { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', width: '100%' }
-              : { display: 'flex', gap: '1rem', flexShrink: 0 }}>
-              <StatTile count={watchedMovies.length} label={isMobile ? 'Watched' : 'Movies Watched'} icon="🎬" compact={isMobile} />
-              <StatTile count={watchlist.length} label="To Watch" icon="🎯" compact={isMobile} />
-              <StatTile count={favorites.length} label="Favorites" icon="❤️" compact={isMobile} />
-            </div>
-          </div>
-        </div>
-
-        {/* Watched Movies */}
-        <h3 style={{ marginBottom: isMobile ? '0.85rem' : '1rem', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>🎬</Emoji> Watched Movies</h3>
-        {watchedMovies.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)', marginBottom: '2rem' }}>
-            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>🎬</Emoji></p>
-            <p style={{ color: '#999', margin: 0 }}>No watched movies yet.</p>
-          </div>
-        ) : (
-          <MovieGrid movies={watchedMovies} onClick={setSelectedWatchedMovie} />
-        )}
-
-        {/* Watchlist */}
-        <h3 style={{ margin: isMobile ? '1.5rem 0 0.85rem 0' : '2rem 0 1rem 0', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>🎯</Emoji> Movies to Watch</h3>
-        {watchlist.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>🎯</Emoji></p>
-            <p style={{ color: '#999', margin: 0 }}>No movies in the watchlist yet.</p>
-          </div>
-        ) : (
-          <MovieGrid
-            movies={watchlist}
-            onClick={(movie) => setSelectedWatchlistMovie({
-              tmdb_id: movie.movie_id,
-              title: movie.movie_title,
-              poster_url: movie.movie_poster,
-              year: movie.movie_year
-            })}
-          />
-        )}
-
-        {/* Favorites */}
-        <h3 style={{ margin: isMobile ? '1.5rem 0 0.85rem 0' : '2rem 0 1rem 0', fontSize: isMobile ? '1.1rem' : '1.2rem' }}><Emoji>❤️</Emoji> Favorite Movies</h3>
-        {favorites.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>❤️</Emoji></p>
-            <p style={{ color: '#999', margin: 0 }}>No favorite movies yet.</p>
-          </div>
-        ) : (
-          <MovieGrid
-            movies={favorites}
-            onClick={(movie) => setSelectedWatchlistMovie({
-              tmdb_id: movie.movie_id,
-              title: movie.movie_title,
-              poster_url: movie.movie_poster,
-              year: movie.movie_year
-            })}
-          />
-        )}
+        <ProfileLists
+          tab={tab}
+          titles={{ watched: 'Watched movies', watchlist: 'Watchlist', favorites: 'Favorite movies' }}
+          sort={sort} onSortChange={setSort}
+          watchedMovies={watchedMovies} watchlist={watchlist} favorites={favorites}
+          loading={!user}
+          isMobile={isMobile}
+          emptyText={{
+            watched: `${name} hasn't logged any movies yet.`,
+            watchlist: `${name}'s watchlist is empty.`,
+            favorites: `${name} hasn't picked any favorites yet.`
+          }}
+          onOpenWatched={setSelectedWatchedMovie}
+          onOpenListMovie={setSelectedWatchlistMovie}
+        />
       </div>
 
       <ScrollToTopButton />

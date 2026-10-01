@@ -9,26 +9,28 @@ import ScrollToTopButton from '../UI/ScrollToTopButton'
 import Select from '../UI/Select'
 import Emoji from '../UI/Emoji'
 import { prefetchMovie } from '../../api/movieCache'
+import useIsMobile from '../../hooks/useIsMobile'
 import { resumeAfter } from '../../utils/navState'
 
 const AWARD_ICONS = { oscars: '🏆', globes: '🌐', bafta: '🎭' }
+// Phone tabs share one row in three equal parts — full names don't fit.
+const AWARD_SHORT_NAMES = { oscars: 'Oscars', globes: 'Globes', bafta: 'BAFTA' }
 
 const SORT_OPTIONS = [
   { value: 'newest', label: 'Newest first' },
   { value: 'oldest', label: 'Oldest first' },
-  { value: 'title', label: 'Title (A-Z)' },
-  { value: 'rating', label: 'Highest rated' }
+  { value: 'title', label: 'Title (A-Z)' }
 ]
 
 const currentYear = new Date().getFullYear()
 const YEAR_OPTIONS = Array.from({ length: currentYear - 1920 + 1 }, (_, i) => currentYear - i)
   .map(year => ({ value: year, label: year }))
 
-const MovieGrid = ({ movies, onClick }) => (
+const MovieGrid = ({ movies, onClick, isMobile }) => (
   <div style={{
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))',
-    gap: '1rem', marginBottom: '2rem',
+    gap: isMobile ? '0.85rem 0.6rem' : '1.25rem 1rem', marginBottom: '2rem',
     animation: 'fadeIn 0.3s ease'
   }}>
     <style>{`
@@ -36,25 +38,35 @@ const MovieGrid = ({ movies, onClick }) => (
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
+      .award-cell { cursor: pointer; transition: transform 0.2s; -webkit-tap-highlight-color: transparent; }
+      .award-cell:active { transform: scale(0.97); }
+      /* Zoom on hover only with a real pointer — on a phone it would stick
+         after a tap. */
+      @media (hover: hover) { .award-cell:hover { transform: scale(1.05); } }
     `}</style>
     {movies.map((movie, i) => (
       <div
         key={movie.tmdb_id || i}
+        className="award-cell"
         onClick={() => onClick(movie)}
-        style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.tmdb_id) }}
-        onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        onMouseEnter={() => prefetchMovie(movie.tmdb_id)}
       >
+        {/* Fixed 2:3 box, so every poster (and every cell) is the same
+            height whatever the image's own proportions. */}
         {movie.poster_url ? (
-          <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', borderRadius: '8px', display: 'block' }} />
+          <img src={movie.poster_url} alt={movie.title} style={{ width: '100%', aspectRatio: '2 / 3', objectFit: 'cover', borderRadius: '8px', display: 'block' }} />
         ) : (
-          <div style={{ width: '100%', height: '225px', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#aaa' }}>No Poster</span>
+          <div style={{ width: '100%', aspectRatio: '2 / 3', backgroundColor: '#1a1a1a', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ color: '#aaa', fontSize: '0.75rem' }}>No Poster</span>
           </div>
         )}
-        <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>{movie.title}</p>
-        <p style={{ fontSize: '0.75rem', color: '#aaa', margin: 0 }}>
-          {movie.year}{movie.rating ? ` · ⭐ ${movie.rating}` : ''}
+        <p style={{
+          fontSize: isMobile ? '0.76rem' : '0.82rem', fontWeight: 600, lineHeight: 1.25,
+          marginTop: '0.45rem', marginBottom: '0.2rem',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden'
+        }}>{movie.title}</p>
+        <p style={{ fontSize: isMobile ? '0.7rem' : '0.75rem', color: '#999', margin: 0 }}>
+          {movie.year}
         </p>
       </div>
     ))}
@@ -75,6 +87,9 @@ function AwardedMovies() {
   const [yearTo, setYearTo] = useState('')
   const [sort, setSort] = useState('newest')
   const [selectedMovie, setSelectedMovie] = useState(null)
+  // Phones: the year/sort controls fold away behind a "Filters" button.
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const isMobile = useIsMobile()
   const [movieToLog, setMovieToLog] = useState(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -130,7 +145,6 @@ function AwardedMovies() {
       switch (sort) {
         case 'oldest': return (a.year || 0) - (b.year || 0)
         case 'title': return a.title.localeCompare(b.title)
-        case 'rating': return (b.rating || 0) - (a.rating || 0)
         default: return (b.year || 0) - (a.year || 0)
       }
     })
@@ -139,6 +153,8 @@ function AwardedMovies() {
   }, [movies, query, yearFrom, yearTo, sort])
 
   const hasFilters = Boolean(query || yearFrom || yearTo || sort !== 'newest')
+  // Count shown on the phone "Filters" button (the search box is always visible).
+  const hiddenFilterCount = [yearFrom, yearTo, sort !== 'newest'].filter(Boolean).length
   const clearFilters = () => {
     setQuery('')
     setYearFrom('')
@@ -153,11 +169,17 @@ function AwardedMovies() {
       </Navbar>
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1200px', margin: '0 auto' }}>
+        <style>{`
+          .award-scroll { scrollbar-width: none; }
+          .award-scroll::-webkit-scrollbar { display: none; }
+        `}</style>
+
+        {/* Hero */}
         <div style={{
           position: 'relative', overflow: 'hidden',
           background: 'linear-gradient(135deg, rgba(179,31,47,0.1) 0%, rgba(255,255,255,0.03) 55%)',
-          border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px',
-          padding: '1.75rem 2.25rem', marginBottom: '1.5rem',
+          border: '1px solid rgba(255,255,255,0.08)', borderRadius: isMobile ? '16px' : '20px',
+          padding: isMobile ? '1rem 1.1rem' : '1.75rem 2.25rem', marginBottom: isMobile ? '1rem' : '1.5rem',
           boxShadow: '0 8px 28px rgba(0,0,0,0.35)'
         }}>
           <div style={{
@@ -166,52 +188,70 @@ function AwardedMovies() {
           }} />
 
           <div style={{ position: 'relative' }}>
-            <p style={{ color: '#dc3c4f', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 0.35rem 0' }}>
+            <p style={{ color: '#dc3c4f', fontSize: isMobile ? '0.66rem' : '0.72rem', fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', margin: '0 0 0.3rem 0' }}>
               Hall of Fame
             </p>
-            <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}><Emoji>🏆</Emoji> Award Winners</h1>
-            <p style={{ color: '#999', margin: '0.35rem 0 0 0', fontSize: '0.9rem' }}>
+            <h1 style={{ margin: 0, fontSize: isMobile ? '1.3rem' : '1.6rem', fontWeight: 800, letterSpacing: '-0.01em' }}><Emoji>🏆</Emoji> Award Winners</h1>
+            <p style={{ color: '#999', margin: '0.3rem 0 0 0', fontSize: isMobile ? '0.82rem' : '0.9rem', lineHeight: 1.45 }}>
               {meta.name} {meta.categoryLabel} winners, from classics to the latest ceremony.
             </p>
           </div>
         </div>
 
-        {/* Award show tabs */}
-        <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        {/* Award shows — phones: one row of three equal segments with short
+            names, instead of pills wrapping onto two uneven rows. */}
+        <div style={isMobile ? {
+          display: 'grid', gridTemplateColumns: `repeat(${Math.max(awardsMeta.length, 1)}, 1fr)`, gap: '0.3rem',
+          padding: '0.3rem', marginBottom: '0.75rem',
+          backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px'
+        } : { display: 'flex', gap: '0.6rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
           {awardsMeta.map(show => {
             const isActive = award === show.value
             return (
               <button
                 key={show.value}
                 onClick={() => selectAward(show.value)}
+                aria-pressed={isActive}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '0.5rem',
-                  padding: '0.6rem 1.1rem', borderRadius: '999px',
-                  background: isActive ? 'linear-gradient(135deg, #dc3c4f, #b31f2f)' : 'rgba(255,255,255,0.05)',
-                  border: '1px solid ' + (isActive ? 'transparent' : 'rgba(255,255,255,0.12)'),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? '0.35rem' : '0.5rem',
+                  padding: isMobile ? '0.6rem 0.3rem' : '0.6rem 1.1rem', borderRadius: isMobile ? '10px' : '999px',
+                  background: isActive ? 'linear-gradient(135deg, #dc3c4f, #b31f2f)' : (isMobile ? 'transparent' : 'rgba(255,255,255,0.05)'),
+                  border: '1px solid ' + (isActive || isMobile ? 'transparent' : 'rgba(255,255,255,0.12)'),
                   color: isActive ? 'white' : '#bbb',
-                  cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700,
+                  cursor: 'pointer', fontSize: isMobile ? '0.8rem' : '0.85rem', fontWeight: 700, whiteSpace: 'nowrap', minWidth: 0,
                   boxShadow: isActive ? '0 6px 16px rgba(179,31,47,0.4)' : 'none',
                   transition: 'background-color 0.15s, border-color 0.15s, box-shadow 0.15s'
                 }}
               >
-                <Emoji>{AWARD_ICONS[show.value] || '🏆'}</Emoji> {show.name}
+                <Emoji>{AWARD_ICONS[show.value] || '🏆'}</Emoji> {isMobile ? (AWARD_SHORT_NAMES[show.value] || show.name) : show.name}
               </button>
             )
           })}
         </div>
 
-        {/* Category tabs - only shown when this award has more than one */}
+        {/* Category tabs — only shown when this award has more than one.
+            Phones: a single row you swipe sideways (it was three rows). */}
         {meta.categories.length > 1 && (
-          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+          <div
+            className={isMobile ? 'award-scroll' : undefined}
+            style={isMobile ? {
+              display: 'flex', gap: '0.45rem', marginBottom: '1rem',
+              overflowX: 'auto', overscrollBehaviorX: 'contain',
+              // let the row run to the screen edges while scrolling
+              margin: '0 calc(-1 * var(--page-pad)) 1rem', padding: '0 var(--page-pad)',
+              maskImage: 'linear-gradient(to right, transparent 0, black 12px, black calc(100% - 24px), transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to right, transparent 0, black 12px, black calc(100% - 24px), transparent 100%)'
+            } : { display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}
+          >
             {meta.categories.map(cat => {
               const isActive = category === cat.value
               return (
                 <button
                   key={cat.value}
                   onClick={() => setCategory(cat.value)}
+                  aria-pressed={isActive}
                   style={{
-                    padding: '0.4rem 0.85rem', borderRadius: '999px',
+                    padding: isMobile ? '0.45rem 0.85rem' : '0.4rem 0.85rem', borderRadius: '999px', flexShrink: 0, whiteSpace: 'nowrap',
                     backgroundColor: isActive ? 'rgba(179,31,47,0.16)' : 'transparent',
                     border: '1px solid ' + (isActive ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.12)'),
                     color: isActive ? '#dc3c4f' : '#888',
@@ -229,61 +269,121 @@ function AwardedMovies() {
         {/* Filters & sort */}
         <div style={{
           background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: '16px', padding: '1.1rem 1.25rem', marginBottom: '1.5rem',
-          display: 'flex', alignItems: 'flex-end', gap: '1rem', flexWrap: 'wrap'
+          borderRadius: isMobile ? '14px' : '16px', padding: isMobile ? '0.65rem' : '1.1rem 1.25rem', marginBottom: isMobile ? '1rem' : '1.5rem'
         }}>
-          <div style={{ flex: '2 1 220px', minWidth: '180px' }}>
-            <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>Search title</label>
-            <div style={{ position: 'relative' }}>
-              <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: queryFocused ? '#dc3c4f' : '#666', fontSize: '0.8rem', transition: 'color 0.15s', pointerEvents: 'none' }}>🔍</span>
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onFocus={() => setQueryFocused(true)}
-                onBlur={() => setQueryFocused(false)}
-                placeholder="Filter by title..."
-                style={{
-                  width: '100%', padding: '0.5rem 0.6rem 0.5rem 2.1rem', borderRadius: '10px',
-                  backgroundColor: '#1a1a1a', border: '1px solid ' + (queryFocused ? '#b31f2f' : 'rgba(255,255,255,0.12)'),
-                  boxShadow: queryFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
-                  color: 'white', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none',
-                  transition: 'border-color 0.15s, box-shadow 0.15s'
-                }}
-              />
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? '0.5rem' : '1rem', flexWrap: isMobile ? 'nowrap' : 'wrap' }}>
+            <div style={{ flex: '2 1 220px', minWidth: isMobile ? 0 : '180px' }}>
+              {!isMobile && <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>Search title</label>}
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: queryFocused ? '#dc3c4f' : '#666', fontSize: '0.8rem', transition: 'color 0.15s', pointerEvents: 'none' }}>🔍</span>
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => setQueryFocused(true)}
+                  onBlur={() => setQueryFocused(false)}
+                  placeholder="Filter by title..."
+                  aria-label="Search title"
+                  style={{
+                    width: '100%', padding: isMobile ? '0.6rem 0.6rem 0.6rem 2.1rem' : '0.5rem 0.6rem 0.5rem 2.1rem', borderRadius: '10px',
+                    backgroundColor: '#1a1a1a', border: '1px solid ' + (queryFocused ? '#b31f2f' : 'rgba(255,255,255,0.12)'),
+                    boxShadow: queryFocused ? '0 0 0 3px rgba(179,31,47,0.18)' : 'none',
+                    color: 'white', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none',
+                    transition: 'border-color 0.15s, box-shadow 0.15s'
+                  }}
+                />
+              </div>
             </div>
+
+            {isMobile && (
+              <button
+                onClick={() => setFiltersOpen(o => !o)}
+                aria-expanded={filtersOpen}
+                style={{
+                  flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.4rem',
+                  height: '42px', padding: '0 0.8rem', borderRadius: '10px', cursor: 'pointer',
+                  backgroundColor: filtersOpen || hiddenFilterCount ? 'rgba(179,31,47,0.16)' : '#1a1a1a',
+                  border: '1px solid ' + (filtersOpen || hiddenFilterCount ? 'rgba(179,31,47,0.5)' : 'rgba(255,255,255,0.12)'),
+                  color: filtersOpen || hiddenFilterCount ? '#ff6b7d' : '#ccc', fontSize: '0.8rem', fontWeight: 700
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+                  <line x1="4" y1="7" x2="20" y2="7" /><line x1="4" y1="17" x2="20" y2="17" />
+                  <circle cx="9" cy="7" r="2.2" fill="currentColor" /><circle cx="15" cy="17" r="2.2" fill="currentColor" />
+                </svg>
+                Filters
+                {hiddenFilterCount > 0 && (
+                  <span style={{ minWidth: '18px', height: '18px', borderRadius: '999px', backgroundColor: '#b31f2f', color: 'white', fontSize: '0.68rem', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>
+                    {hiddenFilterCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {!isMobile && (
+              <>
+                <div style={{ flex: '1 1 100px', minWidth: '90px' }}>
+                  <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>From</label>
+                  <Select value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
+                </div>
+                <div style={{ flex: '1 1 100px', minWidth: '90px' }}>
+                  <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>To</label>
+                  <Select value={yearTo} onChange={(e) => setYearTo(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
+                </div>
+                <div style={{ flex: '1 1 150px', minWidth: '150px' }}>
+                  <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>Sort by</label>
+                  <Select value={sort} onChange={(e) => setSort(e.target.value)} options={SORT_OPTIONS} />
+                </div>
+                {hasFilters && (
+                  <button
+                    onClick={clearFilters}
+                    style={{
+                      border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'transparent',
+                      color: '#888', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
+                      padding: '0.5rem 0.9rem', borderRadius: '999px', flexShrink: 0
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#dc3c4f'; e.currentTarget.style.borderColor = 'rgba(179,31,47,0.5)' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </>
+            )}
           </div>
 
-          <div style={{ flex: '1 1 100px', minWidth: '90px' }}>
-            <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>From</label>
-            <Select value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
-          </div>
-          <div style={{ flex: '1 1 100px', minWidth: '90px' }}>
-            <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>To</label>
-            <Select value={yearTo} onChange={(e) => setYearTo(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
-          </div>
-          <div style={{ flex: '1 1 150px', minWidth: '150px' }}>
-            <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>Sort by</label>
-            <Select value={sort} onChange={(e) => setSort(e.target.value)} options={SORT_OPTIONS} />
-          </div>
-
-          {hasFilters && (
-            <button
-              onClick={clearFilters}
-              style={{
-                border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'transparent',
-                color: '#888', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer',
-                padding: '0.5rem 0.9rem', borderRadius: '999px', flexShrink: 0
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = '#dc3c4f'; e.currentTarget.style.borderColor = 'rgba(179,31,47,0.5)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#888'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.12)' }}
-            >
-              Clear filters
-            </button>
+          {/* Phones: year range + sort, opened by the Filters button */}
+          {isMobile && filtersOpen && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+              <div style={{ minWidth: 0 }}>
+                <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>From</label>
+                <Select value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>To</label>
+                <Select value={yearTo} onChange={(e) => setYearTo(e.target.value)} options={YEAR_OPTIONS} placeholder="Any" />
+              </div>
+              <div style={{ gridColumn: '1 / -1', minWidth: 0 }}>
+                <label style={{ color: '#777', fontSize: '0.72rem', display: 'block', marginBottom: '0.35rem' }}>Sort by</label>
+                <Select value={sort} onChange={(e) => setSort(e.target.value)} options={SORT_OPTIONS} />
+              </div>
+              {hasFilters && (
+                <button
+                  onClick={clearFilters}
+                  style={{
+                    gridColumn: '1 / -1', padding: '0.6rem', borderRadius: '10px', cursor: 'pointer',
+                    border: '1px solid rgba(255,255,255,0.12)', backgroundColor: 'transparent',
+                    color: '#bbb', fontSize: '0.8rem', fontWeight: 700
+                  }}
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           )}
         </div>
 
-        <p style={{ color: '#999', fontSize: '0.85rem', margin: '0 0 1rem 0' }}>
+        <p style={{ color: '#999', fontSize: isMobile ? '0.8rem' : '0.85rem', margin: isMobile ? '0 0 0.75rem 0' : '0 0 1rem 0' }}>
           {loading ? 'Loading...' : `${visibleMovies.length} of ${movies.length} movies`}
         </p>
 
@@ -296,20 +396,20 @@ function AwardedMovies() {
         )}
 
         {!loading && error && (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p style={{ color: '#dc3c4f', margin: 0 }}>{error}</p>
           </div>
         )}
 
         {!loading && !error && visibleMovies.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '2rem 1rem' : '3rem', backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: '18px', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}><Emoji>🏆</Emoji></p>
             <p style={{ color: '#999', margin: 0 }}>No movies match your filters.</p>
           </div>
         )}
 
         {!loading && !error && visibleMovies.length > 0 && (
-          <MovieGrid movies={visibleMovies} onClick={setSelectedMovie} />
+          <MovieGrid movies={visibleMovies} onClick={setSelectedMovie} isMobile={isMobile} />
         )}
       </div>
 

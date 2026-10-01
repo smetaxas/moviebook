@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom'
 import { fetchPerson, getCachedPerson } from '../../api/personCache'
-import { prefetchMovie } from '../../api/movieCache'
 import { resumeAfter } from '../../utils/navState'
 import Navbar from '../UI/Navbar'
 import BackButton from '../UI/BackButton'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
-import MovieDetailsSkeleton from '../UI/MovieDetailsSkeleton'
+import Filmography from '../UI/Filmography'
 import TMDBMovieModal from './TMDBMovieModal'
 import LogMovieModal from './LogMovieModal'
 
@@ -22,6 +21,15 @@ function PersonDetail() {
   const role = searchParams.get('role')
   const [person, setPerson] = useState(() => getCachedPerson(personId, role))
   const [error, setError] = useState('')
+
+  // Main list (acting or directing, whichever role this page was opened
+  // as) plus the other side of their career if the server sent one. Empty
+  // sections are skipped — e.g. a "director" link to someone who has only
+  // acted shows just their acting.
+  const filmographySections = person ? [
+    { label: person.role === 'director' ? 'Directed' : 'Acting', movies: person.movies || [] },
+    ...(person.secondary ? [{ label: person.secondary.label, movies: person.secondary.movies || [] }] : [])
+  ].filter(s => s.movies.length > 0) : []
   const [bioExpanded, setBioExpanded] = useState(false)
   const [selectedMovie, setSelectedMovie] = useState(null)
   const [movieToLog, setMovieToLog] = useState(null)
@@ -218,40 +226,15 @@ function PersonDetail() {
             </div>
           </div>
 
-          {/* Filmography */}
-          <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2.5rem var(--page-pad)' }}>
-            <h2 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '1.25rem' }}>
-              🎬 Filmography {person && <span style={{ color: '#666', fontWeight: 500, fontSize: '1rem' }}>({person.movies.length})</span>}
-            </h2>
-
-            {!person ? (
-              <MovieDetailsSkeleton />
-            ) : person.movies.length === 0 ? (
-              <p style={{ color: '#888' }}>No known movies.</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(var(--poster-min), 1fr))', gap: '1.25rem', animation: 'personContentFadeIn 0.35s ease' }}>
-                {person.movies.map((movie) => (
-                  <div
-                    key={movie.tmdb_id}
-                    onClick={() => setSelectedMovie(movie)}
-                    style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.tmdb_id) }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-                  >
-                    <img
-                      src={movie.poster_url}
-                      alt={movie.title}
-                      style={{ width: '100%', borderRadius: '8px', display: 'block', boxShadow: '0 6px 18px rgba(0,0,0,0.4)' }}
-                    />
-                    <p style={{ fontSize: '0.8rem', marginTop: '0.5rem', marginBottom: '0.15rem', fontWeight: 600 }}>{movie.title}</p>
-                    <p style={{ fontSize: '0.72rem', color: '#888', margin: 0 }}>
-                      {movie.character ? movie.character : movie.year} {movie.character && movie.year ? `· ${movie.year}` : ''}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Filmography — real roles only (the server drops "Self"
+              documentaries, archive footage and uncredited extras). Keyed on
+              the person so tabs/sort reset when moving between people. */}
+          <Filmography
+            key={`${personId}:${role || ''}`}
+            sections={filmographySections}
+            loading={!person}
+            onOpenMovie={setSelectedMovie}
+          />
         </>
       )}
 

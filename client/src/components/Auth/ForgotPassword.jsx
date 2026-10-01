@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../../api/axios'
-import ScrollToTopButton from '../UI/ScrollToTopButton'
-import BackButton from '../UI/BackButton'
+import AuthField from './AuthField'
+import AuthLayout, { AuthHeader, AuthAlert, AuthButton, AuthFooter } from './AuthLayout'
+import { AUTH_ICONS } from './authIcons'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -10,12 +11,6 @@ function ForgotPassword() {
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const navigate = useNavigate()
-
-  const inputStyle = {
-    width: '100%', padding: '0.75rem', borderRadius: '8px',
-    border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(255,255,255,0.05)',
-    color: 'white', boxSizing: 'border-box', fontSize: '1rem', outline: 'none'
-  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -31,76 +26,58 @@ function ForgotPassword() {
     }
   }
 
+  const backToLogin = (
+    <AuthFooter>
+      <button type="button" className="auth-link" onClick={() => navigate('/login')}>← Back to sign in</button>
+    </AuthFooter>
+  )
+
   return (
-    <div style={{
-      minHeight: '100vh', backgroundColor: '#0a0a0a',
-      display: 'flex', alignItems: 'center', justifyContent: 'center'
-    }}>
-      <div style={{
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        backdropFilter: 'blur(10px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '16px', padding: 'var(--card-pad)', width: '100%', maxWidth: '400px',
-        boxShadow: '0 25px 50px rgba(0,0,0,0.5)'
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
-          <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
-        </div>
+    <AuthLayout backLabel="Sign in" onBack={() => navigate('/login')}>
+      {submitted ? (
+        <>
+          <AuthHeader
+            badge={AUTH_ICONS.inbox}
+            title="Check your inbox"
+            subtitle={<>If an account exists for <strong style={{ color: 'white', overflowWrap: 'anywhere' }}>{email}</strong>, we've sent a link to reset your password.</>}
+          />
+          <div style={{ padding: '0.85rem 1rem', borderRadius: '12px', backgroundColor: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: '#999', fontSize: '0.84rem', lineHeight: 1.5 }}>
+            Didn't get it? Check your spam folder, or{' '}
+            <button type="button" className="auth-link" onClick={() => setSubmitted(false)}>try another email</button>.
+          </div>
+          {backToLogin}
+        </>
+      ) : (
+        <>
+          <AuthHeader
+            badge={AUTH_ICONS.key}
+            title="Forgot your password?"
+            subtitle="No worries. Enter your email and we'll send you a reset link."
+          />
 
-        {submitted ? (
-          <>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>
-              If an account exists for <strong style={{ color: 'white' }}>{email}</strong>, a password reset link has been sent. Check your inbox.
-            </p>
-            <p style={{ textAlign: 'center' }}>
-              <BackButton variant="link" onClick={() => navigate('/login')}>Back to Login</BackButton>
-            </p>
-          </>
-        ) : (
-          <>
-            <p style={{ color: '#aaa', textAlign: 'center', marginBottom: '2rem' }}>
-              Enter your email and we'll send you a reset link
-            </p>
+          {error && <AuthAlert key={error}>{error}</AuthAlert>}
 
-            {error && (
-              <p style={{ color: '#b31f2f', backgroundColor: 'rgba(179,31,47,0.1)', padding: '0.75rem', borderRadius: '8px', textAlign: 'center', marginBottom: '1rem' }}>
-                {error}
-              </p>
-            )}
+          <form onSubmit={handleSubmit}>
+            <AuthField
+              label="Email"
+              icon={AUTH_ICONS.mail}
+              type="email"
+              name="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              autoFocus
+              placeholder="you@example.com"
+              style={{ marginBottom: '1.4rem' }}
+            />
+            <AuthButton loading={loading} loadingText="Sending…">Send reset link</AuthButton>
+          </form>
 
-            <form onSubmit={handleSubmit}>
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{ color: '#aaa', display: 'block', marginBottom: '0.5rem', fontSize: '0.9rem' }}>Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  autoComplete="email"
-                  autoFocus
-                  style={inputStyle}
-                />
-              </div>
-
-              <button type="submit" disabled={loading} style={{
-                width: '100%', padding: '0.75rem', backgroundColor: '#b31f2f',
-                color: 'white', border: 'none', borderRadius: '8px',
-                cursor: loading ? 'default' : 'pointer', fontSize: '1rem', fontWeight: 'bold',
-                opacity: loading ? 0.7 : 1
-              }}>
-                {loading ? 'Sending...' : 'Send Reset Link'}
-              </button>
-            </form>
-
-            <p style={{ color: '#aaa', textAlign: 'center', marginTop: '1.5rem' }}>
-              <BackButton variant="link" onClick={() => navigate('/login')}>Back to Login</BackButton>
-            </p>
-          </>
-        )}
-      </div>
-
-      <ScrollToTopButton />
-    </div>
+          {backToLogin}
+        </>
+      )}
+    </AuthLayout>
   )
 }
 

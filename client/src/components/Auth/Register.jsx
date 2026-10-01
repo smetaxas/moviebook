@@ -5,34 +5,14 @@ import useIsMobile from '../../hooks/useIsMobile'
 import ReCAPTCHA from 'react-google-recaptcha'
 import AuthField from './AuthField'
 import PasswordToggle from './PasswordToggle'
-import ScrollToTopButton from '../UI/ScrollToTopButton'
-import BackButton from '../UI/BackButton'
+import AuthLayout, { AuthHeader, AuthAlert, AuthButton, AuthFooter } from './AuthLayout'
+import { AUTH_ICONS } from './authIcons'
 
-const POSTER_URLS = [
-  'https://image.tmdb.org/t/p/w500/q6y0Go1tsGEsmtFryDOJo3dEmqu.jpg',
-  'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
-  'https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg',
-  'https://image.tmdb.org/t/p/w500/d5iIlFn5s0ImszYzBPb8JPIfbXD.jpg',
-  'https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg',
-  'https://image.tmdb.org/t/p/w500/arw2vcBveWOVZr6pxd9XTd1TdQa.jpg',
-  'https://image.tmdb.org/t/p/w500/oYuLEt3zVCKq57qu2F8dT7NIa6f.jpg',
-  'https://image.tmdb.org/t/p/w500/f89U3ADr1oiB1s9GkdPOEpXUk5H.jpg',
-  'https://image.tmdb.org/t/p/w500/aKuFiU82s5ISJpGZp7YkIr3kCUd.jpg',
-  'https://image.tmdb.org/t/p/w500/gEU2QniE6E77NI6lCU6MxlNBvIx.jpg',
-  'https://image.tmdb.org/t/p/w500/9ipbQRgOq6Ilxpwagfa98ikgR9v.jpg',
-  'https://image.tmdb.org/t/p/w500/hfExJPcbBtDeFDEb7I1By72Drlr.jpg',
-  'https://image.tmdb.org/t/p/w500/rzdPqYx7Um4FUZeD8wpXqjAUcEm.jpg',
-  'https://image.tmdb.org/t/p/w500/8kSerJrhrJWKLk1LViesGcnrUPE.jpg',
-  'https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg',
-  'https://image.tmdb.org/t/p/w500/iQFcwSGbZXMkeyKrxbPnwnRo5fl.jpg',
-  'https://image.tmdb.org/t/p/w500/4m1Au3YkjqsxF8iwQy0fPYSxE0h.jpg',
-  'https://image.tmdb.org/t/p/w500/or06FN3Dka5tukK1e9sl16pB3iy.jpg',
-  'https://image.tmdb.org/t/p/w500/pB8BM7pdSp6B6Ih7QZ4DrQ3PmJK.jpg',
-  'https://image.tmdb.org/t/p/w500/kXfqcdQKsToO0OUXHcrrNCHDBzO.jpg',
-  'https://image.tmdb.org/t/p/w500/vgpXmVaVyUL7GGiDeiK1mKEKzcX.jpg',
-  'https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg',
-  'https://image.tmdb.org/t/p/w500/ggFHVNu6YYI5L9pCfOacjizRGt.jpg',
-]
+const STRENGTH = {
+  weak: { label: 'Weak', color: '#ff5a6c', bars: 1, tip: 'Use 8+ characters with upper & lower case and a number' },
+  medium: { label: 'Okay', color: '#fbbf24', bars: 2, tip: 'Add a symbol or more length to make it strong' },
+  strong: { label: 'Strong', color: '#4ade80', bars: 3, tip: 'Great password' },
+}
 
 function Register() {
   const [username, setUsername] = useState('')
@@ -46,7 +26,7 @@ function Register() {
   const isMobile = useIsMobile()
   const [passwordStrength, setPasswordStrength] = useState('')
   const [usernameSuggestions, setUsernameSuggestions] = useState([])
-  const [submitHover, setSubmitHover] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const recaptchaRef = useRef(null)
   const navigate = useNavigate()
 
@@ -65,6 +45,7 @@ function Register() {
 
   const handleRegister = async (e) => {
     e.preventDefault()
+    setError('')
     if (password !== confirmPassword) {
       setError('Passwords do not match')
       return
@@ -74,6 +55,7 @@ function Register() {
       setError('Please complete the CAPTCHA')
       return
     }
+    setSubmitting(true)
     try {
       const res = await api.post('/auth/register', {
         email, password, username,
@@ -88,216 +70,134 @@ function Register() {
       }
       if (recaptchaRef.current) recaptchaRef.current.reset()
       setCaptchaToken(null)
+    } finally {
+      setSubmitting(false)
     }
   }
 
-  const row1 = [...POSTER_URLS, ...POSTER_URLS]
-  const row2 = [...POSTER_URLS.slice(4), ...POSTER_URLS, ...POSTER_URLS.slice(0, 4)]
-
-  const strengthColor = passwordStrength === 'weak' ? '#dc3c4f' : passwordStrength === 'medium' ? '#ffa500' : '#00c800'
+  const strength = STRENGTH[passwordStrength]
+  const matchStatus = confirmPassword ? (confirmPassword === password ? 'ok' : 'error') : undefined
 
   return (
-    <div style={{
-      minHeight: '100vh', backgroundColor: '#0a0a0a',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      overflow: 'hidden', position: 'relative', padding: '4.25rem 1rem 2rem'
-    }}>
-      <style>{`
-        @keyframes scrollLeft {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        @keyframes scrollRight {
-          0% { transform: translateX(-50%); }
-          100% { transform: translateX(0); }
-        }
-      `}</style>
+    <AuthLayout aside formWidth="440px">
+      <AuthHeader title="Create your account" subtitle="Start your movie journal — it's free." onLogoClick={() => navigate('/')} />
 
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        display: 'flex', flexDirection: 'column', gap: '8px',
-        opacity: 0.2, overflow: 'hidden'
-      }}>
-        <div style={{ display: 'flex', animation: 'scrollLeft 80s linear infinite', width: 'max-content' }}>
-          {row1.map((url, i) => (
-            <img key={i} src={url} alt="" style={{ width: '150px', height: '225px', objectFit: 'cover', marginRight: '8px', borderRadius: '4px' }} />
-          ))}
-        </div>
-        <div style={{ display: 'flex', animation: 'scrollRight 70s linear infinite', width: 'max-content' }}>
-          {row2.map((url, i) => (
-            <img key={i} src={url} alt="" style={{ width: '150px', height: '225px', objectFit: 'cover', marginRight: '8px', borderRadius: '4px' }} />
-          ))}
-        </div>
-        <div style={{ display: 'flex', animation: 'scrollLeft 90s linear infinite', width: 'max-content' }}>
-          {row1.map((url, i) => (
-            <img key={i} src={url} alt="" style={{ width: '150px', height: '225px', objectFit: 'cover', marginRight: '8px', borderRadius: '4px' }} />
-          ))}
-        </div>
-      </div>
+      {error && <AuthAlert key={error}>{error}</AuthAlert>}
 
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.75)'
-      }} />
-
-      {/* Back to the home page, same as on the login page. */}
-      <BackButton onClick={() => navigate('/')} style={{ position: 'absolute', top: '1rem', left: '1rem', zIndex: 11 }}>
-        Home
-      </BackButton>
-
-      <div style={{
-        position: 'relative', overflow: 'hidden', zIndex: 10,
-        background: 'linear-gradient(160deg, rgba(30,30,30,0.9) 0%, rgba(14,14,14,0.9) 100%)',
-        backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: '20px', padding: 'var(--card-pad)', width: '100%', maxWidth: '600px',
-        boxShadow: '0 25px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(179,31,47,0.05)'
-      }}>
-        <div style={{
-          position: 'absolute', top: '-80px', right: '-80px', width: '200px', height: '200px',
-          background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
-        }} />
-
-        <div style={{ position: 'relative' }}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.5rem' }}>
-            <img src="/logo.png" alt="CineLog" style={{ height: '64px', objectFit: 'contain' }} />
-          </div>
-          <p style={{ color: '#999', textAlign: 'center', marginBottom: '2rem', fontSize: '0.9rem' }}>Create your account</p>
-
-          {error && (
-            <p style={{ color: '#dc3c4f', backgroundColor: 'rgba(179,31,47,0.1)', border: '1px solid rgba(179,31,47,0.25)', padding: '0.75rem', borderRadius: '10px', textAlign: 'center', marginBottom: '1rem', fontSize: '0.9rem' }}>
-              {error}
-            </p>
+      <form onSubmit={handleRegister} autoComplete="on">
+        <div style={{ marginBottom: '1rem' }}>
+          <AuthField
+            label="Username"
+            icon={AUTH_ICONS.user}
+            type="text"
+            name="username"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
+            required
+            autoComplete="username"
+            placeholder="Pick a username"
+          />
+          {usernameSuggestions.length > 0 && (
+            <div style={{ marginTop: '0.55rem' }}>
+              <p style={{ color: '#888', fontSize: '0.76rem', margin: '0 0 0.35rem 0' }}>That one is taken. Try:</p>
+              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                {usernameSuggestions.map((suggestion, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
+                    style={{ padding: '0.3rem 0.65rem', backgroundColor: 'rgba(179,31,47,0.14)', border: '1px solid rgba(220,60,79,0.4)', borderRadius: '999px', cursor: 'pointer', fontSize: '0.78rem', color: '#ff8a97', fontWeight: 700 }}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
-
-          <form onSubmit={handleRegister} autoComplete="on">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '1rem', marginBottom: '1.1rem' }}>
-              <div>
-                <AuthField
-                  label="Username"
-                  icon="👤"
-                  type="text"
-                  name="username"
-                  value={username}
-                  onChange={(e) => { setUsername(e.target.value); setUsernameSuggestions([]) }}
-                  required
-                  autoComplete="username"
-                />
-                {usernameSuggestions.length > 0 && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <p style={{ color: '#888', fontSize: '0.78rem', margin: '0 0 0.3rem 0' }}>Try one of these:</p>
-                    <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      {usernameSuggestions.map((suggestion, i) => (
-                        <span
-                          key={i}
-                          onClick={() => { setUsername(suggestion); setUsernameSuggestions([]) }}
-                          style={{ padding: '0.25rem 0.55rem', backgroundColor: 'rgba(179,31,47,0.12)', border: '1px solid rgba(179,31,47,0.4)', borderRadius: '999px', cursor: 'pointer', fontSize: '0.78rem', color: '#dc3c4f', fontWeight: 600 }}
-                        >
-                          {suggestion}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <AuthField
-                label="Email"
-                icon="✉️"
-                type="email"
-                name="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                autoComplete="email"
-              />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '1rem', marginBottom: '1.1rem' }}>
-              <div>
-                <AuthField
-                  label="Password"
-                  icon="🔒"
-                  type={showPassword ? 'text' : 'password'}
-                  name="password"
-                  value={password}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    setPasswordStrength(checkPasswordStrength(e.target.value))
-                  }}
-                  required
-                  autoComplete="new-password"
-                  passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
-                  rightSlot={<PasswordToggle visible={showPassword} onToggle={() => setShowPassword(v => !v)} />}
-                />
-                {passwordStrength && (
-                  <div style={{ marginTop: '0.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.25rem' }}>
-                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: '#b31f2f' }} />
-                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'medium' || passwordStrength === 'strong' ? '#ffa500' : '#333' }} />
-                      <div style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: passwordStrength === 'strong' ? '#00c800' : '#333' }} />
-                    </div>
-                    <p style={{ color: strengthColor, fontSize: '0.78rem', margin: 0, fontWeight: 600 }}>
-                      {passwordStrength === 'weak' ? 'Weak' : passwordStrength === 'medium' ? 'Medium' : 'Strong'}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <AuthField
-                label="Confirm Password"
-                icon="🔒"
-                type={showConfirmPassword ? 'text' : 'password'}
-                name="confirm-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                autoComplete="new-password"
-                passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
-                rightSlot={<PasswordToggle visible={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} />}
-              />
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.1rem', marginTop: '1.5rem' }}>
-              {/* The normal widget is a fixed 304px — wider than this card's
-                  content on a phone. Its size can't change after render,
-                  so the key remounts it when crossing the breakpoint. */}
-              <ReCAPTCHA
-                key={isMobile ? 'compact' : 'normal'}
-                size={isMobile ? 'compact' : 'normal'}
-                ref={recaptchaRef}
-                sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
-                onChange={(token) => setCaptchaToken(token)}
-                onExpired={() => setCaptchaToken(null)}
-                theme="dark"
-              />
-              <button
-                type="submit"
-                onMouseEnter={() => setSubmitHover(true)}
-                onMouseLeave={() => setSubmitHover(false)}
-                style={{
-                  width: '100%', padding: '0.85rem', backgroundColor: submitHover ? '#dc3c4f' : '#b31f2f',
-                  color: 'white', border: 'none', borderRadius: '10px',
-                  cursor: 'pointer', fontSize: '1rem', fontWeight: '700',
-                  boxShadow: submitHover ? '0 8px 22px rgba(179,31,47,0.5)' : '0 4px 14px rgba(179,31,47,0.3)',
-                  transform: submitHover ? 'translateY(-1px)' : 'translateY(0)',
-                  transition: 'background-color 0.15s, box-shadow 0.15s, transform 0.15s'
-                }}
-              >
-                Create Account
-              </button>
-            </div>
-          </form>
-
-          <p style={{ color: '#999', textAlign: 'center', marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: '0.9rem' }}>
-            Already have an account?{' '}
-            <span onClick={() => navigate('/login')} style={{ color: '#dc3c4f', cursor: 'pointer', fontWeight: '700' }}>
-              Login
-            </span>
-          </p>
         </div>
-      </div>
 
-      <ScrollToTopButton />
-    </div>
+        <AuthField
+          label="Email"
+          icon={AUTH_ICONS.mail}
+          type="email"
+          name="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          autoComplete="email"
+          placeholder="you@example.com"
+          style={{ marginBottom: '1rem' }}
+        />
+
+        <div style={{ marginBottom: '1rem' }}>
+          <AuthField
+            label="Password"
+            icon={AUTH_ICONS.lock}
+            type={showPassword ? 'text' : 'password'}
+            name="password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value)
+              setPasswordStrength(checkPasswordStrength(e.target.value))
+            }}
+            required
+            autoComplete="new-password"
+            placeholder="At least 8 characters"
+            passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
+            rightSlot={<PasswordToggle visible={showPassword} onToggle={() => setShowPassword(v => !v)} />}
+          />
+          {strength && (
+            <div style={{ marginTop: '0.55rem' }}>
+              <div style={{ display: 'flex', gap: '0.3rem' }}>
+                {[1, 2, 3].map(n => (
+                  <div key={n} style={{ flex: 1, height: '4px', borderRadius: '2px', backgroundColor: n <= strength.bars ? strength.color : 'rgba(255,255,255,0.1)', transition: 'background-color 0.25s' }} />
+                ))}
+              </div>
+              <p style={{ margin: '0.4rem 0 0', fontSize: '0.76rem', color: '#888' }}>
+                <span style={{ color: strength.color, fontWeight: 700 }}>{strength.label}</span> · {strength.tip}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <AuthField
+          label="Confirm password"
+          icon={AUTH_ICONS.lock}
+          type={showConfirmPassword ? 'text' : 'password'}
+          name="confirm-password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+          placeholder="Type it again"
+          passwordrules="minlength: 8; required: upper; required: lower; required: digit;"
+          status={matchStatus}
+          hint={matchStatus === 'ok' ? '✓ Passwords match' : matchStatus === 'error' ? "Passwords don't match yet" : null}
+          rightSlot={<PasswordToggle visible={showConfirmPassword} onToggle={() => setShowConfirmPassword(v => !v)} />}
+        />
+
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.1rem', marginTop: '1.4rem' }}>
+          {/* The normal widget is a fixed 304px — wider than this card's
+              content on a phone. Its size can't change after render,
+              so the key remounts it when crossing the breakpoint. */}
+          <ReCAPTCHA
+            key={isMobile ? 'compact' : 'normal'}
+            size={isMobile ? 'compact' : 'normal'}
+            ref={recaptchaRef}
+            sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY}
+            onChange={(token) => setCaptchaToken(token)}
+            onExpired={() => setCaptchaToken(null)}
+            theme="dark"
+          />
+          <AuthButton loading={submitting} loadingText="Creating account…">Create account</AuthButton>
+        </div>
+      </form>
+
+      <AuthFooter>
+        Already have an account?{' '}
+        <button type="button" className="auth-link" onClick={() => navigate('/login')}>Sign in</button>
+      </AuthFooter>
+    </AuthLayout>
   )
 }
 
