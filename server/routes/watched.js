@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
 const WatchedMovie = require('../models/WatchedMovie');
+const { PUBLIC_USER_FIELDS, isHiddenFrom, privateResponse, visibleTo } = require('../utils/privacy');
 
 // Log a movie
 router.post('/', requireAuth, async (req, res) => {
@@ -141,6 +142,7 @@ router.get('/stats', requireAuth, async (req, res) => {
 // Get watched movies by user ID
 router.get('/user/:userId', requireAuth, async (req, res) => {
   try {
+    if (await isHiddenFrom(req.params.userId, req.userId)) return privateResponse(res);
     const watchedMovies = await WatchedMovie.find({ user_id: req.params.userId })
       .sort({ movie_year: -1 })
       .select('-__v');
@@ -154,10 +156,10 @@ router.get('/user/:userId', requireAuth, async (req, res) => {
 router.get('/', requireAuth, async (req, res) => {
   try {
     const watchedMovies = await WatchedMovie.find()
-      .populate('user_id', 'email username profile_photo')
+      .populate('user_id', PUBLIC_USER_FIELDS)
       .sort({ movie_year: -1 })
       .select('-__v');
-    res.json(watchedMovies);
+    res.json(watchedMovies.filter(visibleTo(req.userId, w => w.user_id)));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -168,15 +170,16 @@ router.get('/all/movie/:movieId', requireAuth, async (req, res) => {
   try {
     const ReviewComment = require('../models/ReviewComment');
 
-    const watchedMovies = await WatchedMovie.find({ movie_id: req.params.movieId })
-      .populate('user_id', 'email username profile_photo')
+    const watchedMovies = (await WatchedMovie.find({ movie_id: req.params.movieId })
+      .populate('user_id', PUBLIC_USER_FIELDS)
       .sort({ movie_year: -1 })
-      .select('-__v');
+      .select('-__v'))
+      .filter(visibleTo(req.userId, w => w.user_id));
 
     const watchedWithComments = await Promise.all(
       watchedMovies.map(async (watched) => {
         const comments = await ReviewComment.find({ watched_movie_id: watched._id })
-          .populate('commenter_id', 'email username profile_photo')
+          .populate('commenter_id', PUBLIC_USER_FIELDS)
           .sort({ createdAt: -1 })
           .select('-__v');
         return { ...watched.toObject(), comments }
@@ -196,6 +199,7 @@ router.get('/id/:id', requireAuth, async (req, res) => {
     if (!watchedMovie) {
       return res.status(404).json({ message: 'Watched movie not found' });
     }
+    if (await isHiddenFrom(watchedMovie.user_id, req.userId)) return privateResponse(res);
     res.json(watchedMovie);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

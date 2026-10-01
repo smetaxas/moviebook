@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
+const { isHiddenFrom, privateResponse } = require('../utils/privacy');
 const Favorite = require('../models/Favorite');
 
 // Get user's favorites
@@ -60,6 +61,7 @@ router.delete('/:id', requireAuth, async (req, res) => {
 // Get another user's favorites (public, requires auth)
 router.get('/user/:userId', requireAuth, async (req, res) => {
   try {
+    if (await isHiddenFrom(req.params.userId, req.userId)) return privateResponse(res);
     const favorites = await Favorite.find({ user_id: req.params.userId })
       .sort({ createdAt: -1 })
       .select('-__v');

@@ -91,7 +91,7 @@ const sendOTPEmail = async (email, otp) => {
   });
 };
 
-const sendVerificationEmail = async (email, token, clientUrl = process.env.CLIENT_URL || 'http://localhost:5173') => {
+const sendVerificationEmail = async (email, token, clientUrl = require('./clientUrl').CLIENT_URL) => {
   const verificationUrl = new URL(`/verify-email?token=${token}`, clientUrl).toString();
   await sendEmail({
     to: email,
@@ -128,4 +128,69 @@ const sendPasswordResetEmail = async (email, resetUrl) => {
   });
 };
 
-module.exports = { sendOTPEmail, sendVerificationEmail, sendPasswordResetEmail };
+// Sent after a password change from the account page, so a change the
+// owner didn't make doesn't go unnoticed.
+const sendPasswordChangedEmail = async (email, resetUrl) => {
+  await sendEmail({
+    to: email,
+    subject: 'Your CineLog password was changed',
+    html: renderTemplate({
+      preheader: 'Your CineLog password was just changed.',
+      icon: '🔒',
+      heading: 'Password Changed',
+      subheading: `The password for your CineLog account was changed on ${new Date().toUTCString()}.`,
+      bodyHtml: `
+        <p style="color:#aaa; text-align:center; font-size:0.85rem; margin:0 0 18px; line-height:1.5;">If this was you, there's nothing else to do. If it wasn't, reset your password right away:</p>
+        ${button(resetUrl, 'Reset Password')}
+      `,
+      footerNote: "You're receiving this because a security setting on your account changed."
+    })
+  });
+};
+
+// Email change, step 1: proves the new address belongs to whoever asked.
+const sendEmailChangeConfirmation = async (newEmail, confirmUrl) => {
+  await sendEmail({
+    to: newEmail,
+    subject: 'Confirm your new CineLog email',
+    html: renderTemplate({
+      preheader: 'Confirm this address to finish changing your CineLog email.',
+      icon: '✉️',
+      heading: 'Confirm Your New Email',
+      subheading: 'You asked to use this address for your CineLog account.',
+      bodyHtml: `
+        ${button(confirmUrl, 'Confirm New Email')}
+        <p style="color:#777; text-align:center; font-size:0.8rem; margin:20px 0 0;">This link expires in 1 hour. Until then, your old email stays in use.</p>
+      `,
+      footerNote: "Didn't ask for this? Ignore this email and nothing will change."
+    })
+  });
+};
+
+// Email change: a heads-up to the address being replaced — sent when the
+// change is requested ('requested') and when it goes through ('changed').
+const escapeHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const sendEmailChangeNotice = async (oldEmail, newEmail, stage, resetUrl) => {
+  const done = stage === 'changed';
+  const shown = escapeHtml(newEmail);
+  await sendEmail({
+    to: oldEmail,
+    subject: done ? 'Your CineLog email was changed' : 'Email change requested on your CineLog account',
+    html: renderTemplate({
+      preheader: done ? 'Your CineLog account now uses a different email.' : 'Someone asked to change your CineLog email.',
+      icon: done ? '🔁' : '⚠️',
+      heading: done ? 'Email Address Changed' : 'Email Change Requested',
+      subheading: done
+        ? `Your CineLog account now uses <strong style="color:#fff;">${shown}</strong>. This address will no longer receive account emails.`
+        : `A request was made to change your account email to <strong style="color:#fff;">${shown}</strong>. It only goes through once that address is confirmed.`,
+      bodyHtml: `
+        <p style="color:#aaa; text-align:center; font-size:0.85rem; margin:0 0 18px; line-height:1.5;">If this was you, there's nothing to do. If it wasn't, reset your password now to secure your account:</p>
+        ${button(resetUrl, 'Reset Password')}
+      `,
+      footerNote: "You're receiving this because a security setting on your account changed."
+    })
+  });
+};
+
+module.exports = { sendOTPEmail, sendVerificationEmail, sendPasswordResetEmail, sendPasswordChangedEmail, sendEmailChangeConfirmation, sendEmailChangeNotice };

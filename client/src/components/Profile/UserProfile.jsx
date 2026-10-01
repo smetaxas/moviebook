@@ -147,6 +147,49 @@ function UserProfile() {
 
       <div style={{ padding: 'var(--page-pad)', maxWidth: '1100px', margin: '0 auto' }}>
 
+        {user?.restricted ? (
+          // A private account: just who it is, and that its lists aren't shared.
+          <div style={{
+            position: 'relative', overflow: 'hidden', maxWidth: '520px', margin: isMobile ? '0.5rem auto 0' : '2rem auto 0',
+            textAlign: 'center', borderRadius: '22px', padding: isMobile ? '2rem 1.25rem' : '2.5rem 2rem',
+            background: 'linear-gradient(160deg, rgba(179,31,47,0.12) 0%, rgba(255,255,255,0.03) 60%)',
+            border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 10px 30px rgba(0,0,0,0.4)', animation: 'upFadeIn 0.35s ease'
+          }}>
+            <div aria-hidden="true" style={{
+              position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: '260px', height: '260px',
+              background: 'radial-gradient(circle, rgba(179,31,47,0.25) 0%, transparent 70%)', pointerEvents: 'none'
+            }} />
+            <div style={{ position: 'relative', display: 'inline-block', borderRadius: '50%', boxShadow: '0 6px 18px rgba(179,31,47,0.35)' }}>
+              <Avatar user={user} size={92} />
+              <span aria-hidden="true" style={{
+                position: 'absolute', right: '-2px', bottom: '-2px', width: '32px', height: '32px', borderRadius: '50%',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+                backgroundColor: '#b31f2f', border: '3px solid #141414'
+              }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+              </span>
+            </div>
+            <h1 style={{ position: 'relative', margin: '1rem 0 0.25rem', fontSize: '1.5rem', fontWeight: 800, overflowWrap: 'anywhere' }}>{user.username}</h1>
+            <p style={{ position: 'relative', margin: 0, color: '#888', fontSize: '0.85rem' }}>
+              Member since {new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
+            </p>
+            <div style={{
+              position: 'relative', margin: '1.4rem auto 0', padding: '1rem 1.1rem', borderRadius: '14px', maxWidth: '400px',
+              backgroundColor: 'rgba(179,31,47,0.1)', border: '1px solid rgba(220,60,79,0.35)', textAlign: 'left',
+              display: 'flex', gap: '0.75rem', alignItems: 'flex-start'
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff6b7d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flexShrink: 0, marginTop: '1px' }}>
+                <path d="M12 3.5L2.5 20h19z" /><line x1="12" y1="10" x2="12" y2="14" /><circle cx="12" cy="17" r="0.6" fill="#ff6b7d" />
+              </svg>
+              <div>
+                <p style={{ margin: 0, color: 'white', fontWeight: 700, fontSize: '0.92rem' }}>This account is private</p>
+                <p style={{ margin: '0.25rem 0 0', color: '#aaa', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                  {user.username} has chosen to keep their watched movies, watchlist, favorites and activity private.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (<>
         <ProfileHeader
           user={user}
           layout={isMobile ? 'narrow' : 'wide'}
@@ -173,6 +216,7 @@ function UserProfile() {
           onOpenWatched={setSelectedWatchedMovie}
           onOpenListMovie={setSelectedWatchlistMovie}
         />
+        </>)}
       </div>
 
       <ScrollToTopButton />

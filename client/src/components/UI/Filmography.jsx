@@ -177,11 +177,11 @@ function Filmography({ sections, loading, onOpenMovie }) {
               <ScrollRow
                 className="film-known"
                 scrollbar
+                bleed="var(--page-pad)"
+                fade="#0a0a0a"
                 style={{
-                  display: 'flex', gap: isMobile ? '0.65rem' : '0.9rem', overflowX: 'auto', scrollbarWidth: 'none', scrollBehavior: 'smooth',
-                  margin: '0 calc(-1 * var(--page-pad))', padding: '0.25rem var(--page-pad) 0.5rem',
-                  maskImage: 'linear-gradient(to right, transparent 0, black var(--page-pad), black calc(100% - 28px), transparent 100%)',
-                  WebkitMaskImage: 'linear-gradient(to right, transparent 0, black var(--page-pad), black calc(100% - 28px), transparent 100%)'
+                  display: 'flex', gap: isMobile ? '0.65rem' : '0.9rem', overflowX: 'auto', scrollbarWidth: 'none',
+                  overscrollBehaviorX: 'contain', padding: '0.25rem var(--page-pad) 0.5rem'
                 }}
               >
                 {knownFor.map(m => <FilmCard key={m.tmdb_id} movie={m} onOpen={onOpenMovie} size="known" isMobile={isMobile} />)}

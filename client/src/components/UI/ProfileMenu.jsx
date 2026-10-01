@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Avatar from './Avatar'
 import useIsMobile from '../../hooks/useIsMobile'
 
@@ -15,9 +16,9 @@ const svg = (children) => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
 )
 const ICONS = {
-  shield: svg(<><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6z" /><path d="M9 12l2.2 2.2L15.5 10" /></>),
   logout: svg(<><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" /><path d="M10 16l-4-4 4-4" /><line x1="6" y1="12" x2="15" y2="12" /></>),
-  trash: svg(<><path d="M4 7h16" /><path d="M9 7V4.5h6V7" /><path d="M6.5 7l1 12.5h9l1-12.5" /><line x1="10" y1="11" x2="10" y2="16" /><line x1="14" y1="11" x2="14" y2="16" /></>),
+  account: svg(<><circle cx="12" cy="8.5" r="3.8" /><path d="M5 20c1.1-3.6 3.8-5.5 7-5.5s5.9 1.9 7 5.5" /><circle cx="18.5" cy="5.5" r="2.2" /></>),
+  chevron: svg(<path d="M9 6l6 6-6 6" />),
 }
 
 const MenuItem = ({ onClick, icon, label, hint, right, danger }) => (
@@ -46,7 +47,8 @@ const MenuItem = ({ onClick, icon, label, hint, right, danger }) => (
   </button>
 )
 
-function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
+function ProfileMenu({ user, onLogout }) {
+  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [triggerHover, setTriggerHover] = useState(false)
   // On mobile the navbar has no room for the expanding username + chevron —
@@ -143,32 +145,18 @@ function ProfileMenu({ user, onOpen2FA, onLogout, onDeleteAccount }) {
           </div>
           <div style={{ position: 'relative', minWidth: 0 }}>
             <p style={{ color: 'white', fontWeight: 800, margin: 0, fontSize: '0.98rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.username}</p>
-            <p style={{ color: '#999', fontSize: '0.75rem', margin: '0.15rem 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.email}</p>
           </div>
         </div>
 
         <MenuItem
-          onClick={() => { onOpen2FA(); setOpen(false) }}
-          icon={ICONS.shield}
-          label="Two-factor auth"
-          hint={user.two_factor_enabled ? 'Your account is protected' : 'Extra sign-in security'}
-          right={
-            <span style={{
-              flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-              padding: '0.2rem 0.5rem', borderRadius: '999px', fontSize: '0.66rem', fontWeight: 800, letterSpacing: '0.04em',
-              backgroundColor: user.two_factor_enabled ? 'rgba(46,204,113,0.14)' : 'rgba(255,255,255,0.07)',
-              color: user.two_factor_enabled ? '#4ade80' : '#aaa',
-              border: '1px solid ' + (user.two_factor_enabled ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.1)')
-            }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: user.two_factor_enabled ? '#4ade80' : '#777' }} />
-              {user.two_factor_enabled ? 'ON' : 'OFF'}
-            </span>
-          }
+          onClick={() => { setOpen(false); navigate('/account') }}
+          icon={ICONS.account}
+          label="My account"
+          hint="Details, password, privacy, 2FA"
+          right={<span style={{ display: 'flex', color: '#666' }}>{ICONS.chevron}</span>}
         />
         <MenuItem onClick={() => { onLogout(); setOpen(false) }} icon={ICONS.logout} label="Log out" />
 
-        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.07)', margin: '0.35rem 0.4rem' }} />
-        <MenuItem danger onClick={() => { onDeleteAccount(); setOpen(false) }} icon={ICONS.trash} label="Delete account" hint="Permanently remove your data" />
       </div>
     </div>
   )

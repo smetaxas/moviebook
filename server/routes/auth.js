@@ -7,6 +7,7 @@ const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
 const auditLog = require('../middleware/audit');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../config/email');
+const { clientLink, CLIENT_URL } = require('../config/clientUrl');
 
 // Cookie options
 const accessTokenCookieOptions = {
@@ -146,7 +147,7 @@ router.get('/verify-email', async (req, res) => {
 
     await auditLog('EMAIL_VERIFIED', user._id, req.ip, { email: user.email }, true);
 
-    res.redirect(`${process.env.CLIENT_URL}/login?verified=true`)
+    res.redirect(`${CLIENT_URL}/login?verified=true`)
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -332,7 +333,7 @@ router.post('/forgot-password', async (req, res) => {
       reset_password_expires: resetExpires
     })
 
-    const resetUrl = `${process.env.CLIENT_URL}/reset-password?token=${resetToken}`
+    const resetUrl = clientLink(`/reset-password?token=${resetToken}`)
 
     console.log('Sending password reset email to:', user.email)
     await sendPasswordResetEmail(user.email, resetUrl)
@@ -347,10 +348,28 @@ router.post('/forgot-password', async (req, res) => {
   }
 });
 
+// Same rules as sign-up — checked here too, not only in the browser.
+const resetPasswordValidation = [
+  body('password')
+    .isString().withMessage('Password is required')
+    .isLength({ min: 8, max: 128 }).withMessage('Password must be at least 8 characters')
+    .matches(/[A-Z]/).withMessage('Password must contain at least one uppercase letter')
+    .matches(/[a-z]/).withMessage('Password must contain at least one lowercase letter')
+    .matches(/[0-9]/).withMessage('Password must contain at least one number')
+]
+
 // Reset Password
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', resetPasswordValidation, async (req, res) => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ message: errors.array()[0].msg });
+    }
+
     const { token, password } = req.body;
+    if (typeof token !== 'string' || !token) {
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
 
     const user = await User.findOne({
       reset_password_token: token,
@@ -363,8 +382,12 @@ router.post('/reset-password', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10)
 
+    // Also signs out every existing session (their refresh token no longer
+    // matches) — if someone else had access, they lose it now.
     await user.updateOne({
       password: hashedPassword,
+      password_changed_at: new Date(),
+      refresh_token: null,
       reset_password_token: null,
       reset_password_expires: null,
       login_attempts: 0,

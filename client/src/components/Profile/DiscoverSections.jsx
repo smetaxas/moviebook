@@ -8,7 +8,7 @@ const styles = `
   @keyframes dsFadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .ds-row { scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .ds-row::-webkit-scrollbar { display: none; }
-  .ds-item { cursor: pointer; flex-shrink: 0; scroll-snap-align: start; -webkit-tap-highlight-color: transparent; }
+  .ds-item { cursor: pointer; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
   .ds-item .ds-poster { transition: transform 0.2s, box-shadow 0.2s; }
   .ds-item .ds-rank { transition: -webkit-text-stroke-color 0.2s, color 0.2s; }
   .ds-item:active .ds-poster { transform: scale(0.97); }
@@ -57,15 +57,16 @@ function SectionHeader({ eyebrow, title, subtitle, isMobile }) {
   )
 }
 
-// Rows bleed to the edges of the content column, fading out at the sides.
+// Rows run to the edges of the content column (ScrollRow's bleed) and fade
+// out at the sides (its fade overlays). Free, native momentum scrolling:
+// no snapping and no mask on the scrolling element — both made swiping
+// on a phone feel stiff.
 const rowStyle = (isMobile) => ({
   display: 'flex', gap: isMobile ? '0.75rem' : '1rem', overflowX: 'auto', overscrollBehaviorX: 'contain',
-  scrollSnapType: isMobile ? 'x mandatory' : undefined, scrollBehavior: 'smooth',
-  margin: '0 calc(-1 * var(--page-pad))', padding: '0.4rem var(--page-pad) 0.6rem',
-  scrollPaddingLeft: 'var(--page-pad)',
-  maskImage: 'linear-gradient(to right, transparent 0, black var(--page-pad), black calc(100% - 28px), transparent 100%)',
-  WebkitMaskImage: 'linear-gradient(to right, transparent 0, black var(--page-pad), black calc(100% - 28px), transparent 100%)'
+  padding: '0.4rem var(--page-pad) 0.6rem'
 })
+const ROW_BLEED = 'var(--page-pad)'
+const PAGE_BG = '#0a0a0a'
 
 function Poster({ movie, width, children }) {
   return (
@@ -93,7 +94,7 @@ const Title = ({ children, width, isMobile }) => (
 
 function RowSkeleton({ isMobile, width }) {
   return (
-    <div className="ds-row" style={{ ...rowStyle(isMobile), overflow: 'hidden' }}>
+    <div className="ds-row" style={{ ...rowStyle(isMobile), overflow: 'hidden', margin: `0 calc(-1 * ${ROW_BLEED})` }}>
       {Array.from({ length: 8 }, (_, i) => (
         <div key={i} style={{ flexShrink: 0, width }}>
           <div style={{ aspectRatio: '2 / 3', borderRadius: '10px', backgroundColor: skeletonBg, animation: pulse }} />
@@ -181,7 +182,7 @@ export function TrendingSection({ movies, onOpen, isMobile }) {
         <>
           <Spotlight movie={top} onOpen={onOpen} isMobile={isMobile} />
           {/* The rest, ranked: a big outlined number tucked behind each poster */}
-          <ScrollRow className="ds-row" arrows scrollbar arrowTop="42%" style={rowStyle(isMobile)}>
+          <ScrollRow className="ds-row" arrows scrollbar arrowTop="42%" bleed={ROW_BLEED} fade={PAGE_BG} style={rowStyle(isMobile)}>
             {rest.map((movie, i) => (
               <div key={movie.tmdb_id} className="ds-item" onClick={() => onOpen(movie)} onMouseEnter={() => prefetchMovie(movie.tmdb_id)}>
                 <div style={{ display: 'flex', alignItems: 'flex-end' }}>
@@ -220,7 +221,7 @@ export function UpcomingSection({ movies, onOpen, isMobile }) {
       {movies.length === 0 ? (
         <RowSkeleton isMobile={isMobile} width={posterW} />
       ) : (
-        <ScrollRow className="ds-row" arrows scrollbar arrowTop="38%" style={rowStyle(isMobile)}>
+        <ScrollRow className="ds-row" arrows scrollbar arrowTop="38%" bleed={ROW_BLEED} fade={PAGE_BG} style={rowStyle(isMobile)}>
           {movies.map(movie => {
             const date = parseDay(movie.release_date)
             return (

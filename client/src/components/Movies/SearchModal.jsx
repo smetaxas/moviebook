@@ -148,8 +148,19 @@ function UserRow({ user, onSelect }) {
       onSelect={onSelect}
       picture={<Avatar user={user} size={54} />}
       title={user.username}
+      badge={user.is_private && (
+        <span style={{
+          flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.1rem 0.45rem', borderRadius: '999px',
+          backgroundColor: 'rgba(255,255,255,0.08)', color: '#bbb', fontSize: '0.6rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em'
+        }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          Private
+        </span>
+      )}
       detail={<>
-        <span style={{ color: '#dc3c4f', fontWeight: 700 }}>{user.watchedCount} {user.watchedCount === 1 ? 'movie' : 'movies'} logged</span>
+        {user.is_private
+          ? <span style={{ color: '#999', fontWeight: 700 }}>Private account</span>
+          : <span style={{ color: '#dc3c4f', fontWeight: 700 }}>{user.watchedCount} {user.watchedCount === 1 ? 'movie' : 'movies'} logged</span>}
         {joined && <> · Joined {joined}</>}
       </>}
     />

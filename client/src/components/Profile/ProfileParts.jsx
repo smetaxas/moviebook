@@ -100,7 +100,8 @@ const SORTS = [
 //  'medium' — avatar + name on top, stats in a full-width row below
 //  'narrow' — everything stacked and centred (phones)
 // avatar(size) renders the picture, so your own page can add its upload button.
-export function ProfileHeader({ user, layout, avatar, watchedMovies, watchlistCount, favoritesCount, activeTab, onStatClick, cardRef }) {
+// showJoined: the "Member since" date (your own page leaves it to My Account).
+export function ProfileHeader({ user, layout, avatar, watchedMovies, watchlistCount, favoritesCount, activeTab, onStatClick, cardRef, showJoined = true }) {
   const narrow = layout === 'narrow'
   const wide = layout === 'wide'
   const avatarSize = wide ? 96 : layout === 'medium' ? 80 : 84
@@ -153,11 +154,11 @@ export function ProfileHeader({ user, layout, avatar, watchedMovies, watchlistCo
                   justifyContent: narrow ? 'center' : 'flex-start',
                   color: '#999', margin: '0.3rem 0 0 0', fontSize: '0.85rem'
                 }}>
-                  <span>Member since {new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>
+                  {showJoined && <span>Member since {new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}</span>}
                   {avgRating && (
                     <>
                       {/* phones: the rating wraps onto its own line — no dangling dot */}
-                      {!narrow && <span style={{ color: '#555' }}>·</span>}
+                      {showJoined && !narrow && <span style={{ color: '#555' }}>·</span>}
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', whiteSpace: 'nowrap' }}>
                         <span style={{ color: '#ff4d61', fontWeight: 800 }}>★ {avgRating}</span>
                         <span>average · {rated.length} rated</span>

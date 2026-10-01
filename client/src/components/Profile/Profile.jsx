@@ -8,7 +8,6 @@ import MovieDetailModal from '../Movies/MovieDetailModal'
 import TMDBMovieModal from '../Movies/TMDBMovieModal'
 import LogMovieModal from '../Movies/LogMovieModal'
 import TwoFactorSetup from './TwoFactorSetup'
-import ConfirmModal from '../UI/ConfirmModal'
 import GenreSidebar from '../UI/GenreSidebar'
 import ImageCropModal from '../UI/ImageCropModal'
 import ScrollToTopButton from '../UI/ScrollToTopButton'
@@ -42,7 +41,7 @@ const MovieGrid = ({ movies, onClick, isMobile }) => (
         from { opacity: 0; transform: translateY(10px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      .movie-carousel { scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+      .movie-carousel { -webkit-overflow-scrolling: touch; scrollbar-width: none; }
       .movie-carousel::-webkit-scrollbar { display: none; }
     `}</style>
     {movies.map((movie, i) => (
@@ -51,7 +50,7 @@ const MovieGrid = ({ movies, onClick, isMobile }) => (
         onClick={() => onClick(movie)}
         style={{
           cursor: 'pointer', transition: 'transform 0.2s',
-          ...(isMobile ? { flexShrink: 0, width: '128px', scrollSnapAlign: 'start' } : {})
+          ...(isMobile ? { flexShrink: 0, width: '128px' } : {})
         }}
         onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.05)'; prefetchMovie(movie.movie_id || movie.tmdb_id) }}
         onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
@@ -145,7 +144,6 @@ function Profile() {
   const [show2FASetup, setShow2FASetup] = useState(false)
   const [show2FAPrompt, setShow2FAPrompt] = useState(false)
   const [movieToLog, setMovieToLog] = useState(null)
-  const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [showCropModal, setShowCropModal] = useState(false)
   const [cropImageSrc, setCropImageSrc] = useState(null)
   const navigate = useNavigate()
@@ -293,16 +291,6 @@ function Profile() {
   const handleLogout = () => {
     localStorage.removeItem('user')
     navigate('/login')
-  }
-
-  const handleDeleteAccount = async () => {
-    try {
-      await api.delete('/user/profile')
-      localStorage.removeItem('user')
-      navigate('/login')
-    } catch (err) {
-      console.error('Failed to delete account')
-    }
   }
 
   const handlePhotoUpload = async (e) => {
@@ -465,9 +453,7 @@ function Profile() {
       >
         <ProfileMenu
           user={user}
-          onOpen2FA={() => setShow2FASetup(true)}
           onLogout={handleLogout}
-          onDeleteAccount={() => setShowDeleteAccount(true)}
         />
         
       </Navbar>
@@ -521,33 +507,42 @@ function Profile() {
               own width (see cardLayout); plus the photo upload button. */}
           <ProfileHeader
             cardRef={infoCardRef}
+            showJoined={false}
             user={user}
             layout={cardLayout}
             avatar={size => (
-              <div style={{ position: 'relative' }}>
-                <Avatar user={user} size={size} onClick={() => document.getElementById('photoInput').click()} />
-                <div
-                  onClick={() => document.getElementById('photoInput').click()}
-                  style={{
-                    position: 'absolute', bottom: '2px', right: '2px', backgroundColor: '#b31f2f',
-                    border: '2px solid #0a0a0a', borderRadius: '50%', width: '26px', height: '26px',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                    fontSize: '0.72rem', lineHeight: '1', boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
-                    transform: 'scale(1)', transition: 'background-color 0.15s, transform 0.15s, box-shadow 0.15s'
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.backgroundColor = '#dc3c4f'
-                    e.currentTarget.style.transform = 'scale(1.12)'
-                    e.currentTarget.style.boxShadow = '0 4px 10px rgba(179,31,47,0.55)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.backgroundColor = '#b31f2f'
-                    e.currentTarget.style.transform = 'scale(1)'
-                    e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.4)'
-                  }}
-                >
-                  📷
-                </div>
+              // Your photo: tap it (or the camera badge) to change it. On a
+              // mouse, hovering the photo also shows a "Change" overlay.
+              <div className="pf-avatar" style={{ position: 'relative' }}>
+                <style>{`
+                  .pf-avatar-hit { position: relative; display: block; padding: 0; border: none; background: none; border-radius: 50%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+                  .pf-avatar-overlay { position: absolute; inset: 0; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+                    background: rgba(10,10,10,0.6); color: white; font-size: 0.68rem; font-weight: 700; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+                  .pf-camera { position: absolute; right: -2px; bottom: -2px; width: 32px; height: 32px; padding: 0; border-radius: 50%;
+                    display: flex; align-items: center; justify-content: center; cursor: pointer; color: white;
+                    background: linear-gradient(135deg, #e0394f 0%, #b31f2f 100%); border: 3px solid #161616;
+                    box-shadow: 0 4px 12px rgba(179,31,47,0.45); transition: transform 0.15s, box-shadow 0.15s; -webkit-tap-highlight-color: transparent; }
+                  .pf-camera:active, .pf-avatar-hit:active { transform: scale(0.94); }
+                  @media (hover: hover) {
+                    .pf-avatar:hover .pf-avatar-overlay { opacity: 1; }
+                    .pf-avatar-hit:hover { transform: none; filter: none; }
+                    .pf-camera:hover { transform: scale(1.08); filter: none; box-shadow: 0 6px 16px rgba(179,31,47,0.6); }
+                  }
+                `}</style>
+                <button type="button" className="pf-avatar-hit" onClick={() => document.getElementById('photoInput').click()} aria-label="Change profile photo">
+                  <Avatar user={user} size={size} />
+                  <span className="pf-avatar-overlay" aria-hidden="true">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" /><circle cx="12" cy="12.5" r="3.4" />
+                    </svg>
+                    Change
+                  </span>
+                </button>
+                <button type="button" className="pf-camera" onClick={() => document.getElementById('photoInput').click()} aria-label="Change profile photo" title="Change photo">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" /><circle cx="12" cy="12.5" r="3.4" />
+                  </svg>
+                </button>
                 <input id="photoInput" type="file" accept="image/*" style={{ display: 'none' }} onChange={handlePhotoUpload} />
               </div>
             )}
@@ -691,17 +686,6 @@ function Profile() {
           isEnabled={user.two_factor_enabled}
           onEnabled={() => setUser(prev => ({ ...prev, two_factor_enabled: true }))}
           onDisabled={() => setUser(prev => ({ ...prev, two_factor_enabled: false }))}
-        />
-      )}
-
-      {showDeleteAccount && (
-        <ConfirmModal
-          icon="⚠️"
-          title="Delete Account"
-          message="Are you sure you want to delete your account? This action cannot be undone!"
-          confirmText="Delete"
-          onConfirm={handleDeleteAccount}
-          onCancel={() => setShowDeleteAccount(false)}
         />
       )}
 

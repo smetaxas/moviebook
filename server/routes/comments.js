@@ -3,10 +3,19 @@ const router = express.Router();
 const requireAuth = require('../middleware/auth');
 const ReviewComment = require('../models/ReviewComment');
 const WatchedMovie = require('../models/WatchedMovie');
+const { PUBLIC_USER_FIELDS, isHiddenFrom, privateResponse } = require('../utils/privacy');
+
+// A private account's logs (and their comment threads) are only open to
+// the owner.
+const logIsHidden = async (watchedMovieId, viewerId) => {
+  const log = await WatchedMovie.findById(watchedMovieId).select('user_id').lean();
+  return log ? isHiddenFrom(log.user_id, viewerId) : false;
+};
 
 // Get comments by watched movie ID
 router.get('/:watchedMovieId', requireAuth, async (req, res) => {
   try {
+    if (await logIsHidden(req.params.watchedMovieId, req.userId)) return privateResponse(res);
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
     const before = req.query.before ? new Date(req.query.before) : null;
     const beforeId = req.query.beforeId;
@@ -21,7 +30,7 @@ router.get('/:watchedMovieId', requireAuth, async (req, res) => {
     }
 
     const results = await ReviewComment.find(query)
-      .populate('commenter_id', 'email username profile_photo')
+      .populate('commenter_id', PUBLIC_USER_FIELDS)
       .sort({ createdAt: -1, _id: -1 })
       .limit(limit + 1)
       .select('-__v');
@@ -46,6 +55,8 @@ router.post('/:watchedMovieId', requireAuth, async (req, res) => {
       return res.status(400).json({ message: 'Invalid GIF URL' });
     }
 
+    if (await logIsHidden(req.params.watchedMovieId, req.userId)) return privateResponse(res);
+
     const newComment = await ReviewComment.create({
       watched_movie_id: req.params.watchedMovieId,
       commenter_id: req.userId,
@@ -53,7 +64,7 @@ router.post('/:watchedMovieId', requireAuth, async (req, res) => {
       gif_url: gif_url || null
     });
 
-    const populated = await newComment.populate('commenter_id', 'email username profile_photo');
+    const populated = await newComment.populate('commenter_id', PUBLIC_USER_FIELDS);
 
     res.status(201).json(populated);
   } catch (err) {

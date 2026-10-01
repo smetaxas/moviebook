@@ -30,6 +30,32 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // Private mode: other users see only the name and photo, not the lists
+  // or community activity (see utils/privacy.js).
+  is_private: {
+    type: Boolean,
+    default: false
+  },
+  password_changed_at: {
+    type: Date,
+    default: null
+  },
+  // Email change in progress: the new address waits here until its owner
+  // opens the link we sent to it. Only a hash of the link's token is stored.
+  pending_email: {
+    type: String,
+    default: null,
+    lowercase: true,
+    trim: true
+  },
+  email_change_token: {
+    type: String,
+    default: null
+  },
+  email_change_expires: {
+    type: Date,
+    default: null
+  },
   otp_code: {
     type: String,
     default: null
